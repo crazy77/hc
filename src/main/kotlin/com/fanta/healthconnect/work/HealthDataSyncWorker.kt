@@ -64,110 +64,23 @@ class HealthDataSyncWorker(
                 return Result.success()
             }
 
-            // Health Connect 초기화 재시도 로직 (백그라운드 실행 시 중요)
-            var healthConnectReady = false
-            var attempts = 0
-            val maxAttempts = 3
+            // 백그라운드 실행 제약으로 인해 포그라운드 서비스로 실제 동기화 수행
+            Log.d(TAG, "Starting foreground service for health data sync due to background restrictions")
+            HealthDataSyncForegroundService.startSync(applicationContext)
             
-            while (!healthConnectReady && attempts < maxAttempts) {
-                attempts++
-                Log.d(TAG, "Health Connect initialization attempt $attempts/$maxAttempts")
-                
-                // Health Connect 사용 가능 여부 확인
-                if (!healthConnectRepository.isHealthConnectAvailable()) {
-                    Log.w(TAG, "Health Connect is not available (attempt $attempts)")
-                    if (attempts < maxAttempts) {
-                        kotlinx.coroutines.delay(2000) // 2초 대기 후 재시도
-                        continue
-                    } else {
-                        Log.e(TAG, "Health Connect is not available after $maxAttempts attempts")
-                        return Result.failure()
-                    }
-                }
-
-                // 권한 확인
-                if (!healthConnectRepository.checkPermissions()) {
-                    Log.w(TAG, "Health Connect permissions not granted (attempt $attempts)")
-                    if (attempts < maxAttempts) {
-                        kotlinx.coroutines.delay(2000) // 2초 대기 후 재시도
-                        continue
-                    } else {
-                        Log.e(TAG, "Health Connect permissions not granted after $maxAttempts attempts")
-                        return Result.failure()
-                    }
-                }
-                
-                healthConnectReady = true
-                Log.d(TAG, "Health Connect ready after $attempts attempts")
-            }
-
-            Log.d(TAG, "Fetching today's health data for background sync...")
-
-            // 오늘의 건강 데이터 수집 (재시도 로직 포함)
-            var totalRecords = 0
-            var dataFetchAttempts = 0
-            val maxDataAttempts = 2
-            
-            while (totalRecords == 0 && dataFetchAttempts < maxDataAttempts) {
-                dataFetchAttempts++
-                Log.d(TAG, "Health data fetch attempt $dataFetchAttempts/$maxDataAttempts")
-                
-                healthConnectRepository.getTodayHealthData().collect { healthRecords ->
-                    totalRecords = healthRecords.size
-                    Log.d(TAG, "Retrieved ${healthRecords.size} health records for today (attempt $dataFetchAttempts)")
-                    
-                    if (healthRecords.isNotEmpty()) {
-                        // 데이터 타입별 개수 로깅
-                        val dataTypeCounts = healthRecords.groupBy { it.type }.mapValues { it.value.size }
-                        Log.d(TAG, "Today's data by type: $dataTypeCounts")
-                        
-                        // 웹훅으로 데이터 전송
-                        Log.d(TAG, "Sending today's data to webhook: $webhookUrl")
-                        val result = webhookRepository.sendHealthData(
-                            webhookUrl = webhookUrl,
-                            healthRecords = healthRecords,
-                            userId = userId
-                        )
-
-                        if (result.isSuccess) {
-                            // 성공 시 마지막 동기화 시간 업데이트
-                            userPreferences.setLastSyncTime(Instant.now())
-                            Log.d(TAG, "Today's health data sync completed successfully, updated lastSyncTime to ${Instant.now()}")
-                        } else {
-                            val error = result.exceptionOrNull()
-                            Log.e(TAG, "Failed to send today's data to webhook", error)
-                            return@collect
-                        }
-                    } else {
-                        Log.d(TAG, "No health data found for today (attempt $dataFetchAttempts)")
-                        if (dataFetchAttempts < maxDataAttempts) {
-                            Log.d(TAG, "Waiting 3 seconds before retry...")
-                        }
-                    }
-                }
-                
-                // 데이터가 없고 재시도가 남았다면 대기
-                if (totalRecords == 0 && dataFetchAttempts < maxDataAttempts) {
-                    kotlinx.coroutines.delay(3000) // 3초 대기 후 재시도
-                }
-            }
-
-            Log.d(TAG, "Background sync completed successfully with $totalRecords records")
-            
-            // 성공 시간을 OutputData에 저장
+            // WorkManager는 포그라운드 서비스 시작 후 즉시 성공 반환
             val finishTime = Instant.now()
             val outputData = Data.Builder()
                 .putString("finishTime", finishTime.toString())
-                .putString("status", "success")
-                .putInt("recordCount", totalRecords)
-                .putInt("initAttempts", attempts)
-                .putInt("dataAttempts", dataFetchAttempts)
+                .putString("status", "foreground_service_started")
+                .putString("message", "Foreground service started for health data sync")
                 .build()
             
+            Log.d(TAG, "Foreground service started successfully")
             Result.success(outputData)
             
         } catch (e: Exception) {
-            Log.e(TAG, "Error during health data sync", e)
+            Log.e(TAG, "Error starting foreground service for health data sync", e)
             
             // 실패 시간을 OutputData에 저장
             val finishTime = Instant.now()
@@ -179,19 +92,7 @@ class HealthDataSyncWorker(
                 .build()
             
             Log.d(TAG, "Failure data created: finishTime=$finishTime, error=${e.message}")
-            
-            // 실패 횟수에 따라 재시도 여부 결정
-            val attemptCount = runAttemptCount
-            Log.d(TAG, "Attempt count: $attemptCount")
-            
-            return if (attemptCount < 3) {
-                Log.d(TAG, "Retrying work (attempt $attemptCount), will retry after backoff")
-                // 재시도할 때도 실패 데이터를 포함하여 UI에서 확인 가능하도록
-                Result.retry()
-            } else {
-                Log.e(TAG, "Max retry attempts reached, failing work with data")
-                Result.failure(failureData)
-            }
+            Result.failure(failureData)
         }
     }
 } 
