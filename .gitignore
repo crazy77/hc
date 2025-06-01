@@ -142,4 +142,7 @@ lint/tmp/
 *.so
 
 # Health Connect specific (if any sensitive data)
-# health_connect_config.json 
+# health_connect_config.json
+
+# Project-local gradle cache (to avoid user directory path issues)
+.gradle-local/ 

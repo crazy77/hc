@@ -1,3 +1,4 @@
+// Top-level build file where you can add configuration options common to all sub-projects/modules.
 plugins {
     id("com.android.application") version "8.10.1"
     id("org.jetbrains.kotlin.android") version "2.0.0"
@@ -8,11 +9,11 @@ plugins {
 }
 
 android {
-    namespace = "com.example.healthconnectwebhook"
+    namespace = "com.fanta.healthconnect"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.example.healthconnectwebhook"
+        applicationId = "com.fanta.healthconnect"
         minSdk = 28
         targetSdk = 35
         versionCode = 1
