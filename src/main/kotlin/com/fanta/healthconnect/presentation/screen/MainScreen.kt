@@ -1,14 +1,15 @@
 package com.fanta.healthconnect.presentation.screen
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.DateRange
-import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -16,6 +17,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.fanta.healthconnect.data.model.HealthDataType
 import com.fanta.healthconnect.data.model.HealthRecord
@@ -72,8 +74,24 @@ fun MainScreen(
             syncStatus = uiState.syncStatus,
             lastSyncTime = uiState.lastSyncTime,
             selectedDate = uiState.selectedDate,
-            onToggleSync = { viewModel.toggleSync() },
+            onToggleSync = { viewModel.toggleBackgroundSync() },
             onManualSync = { viewModel.performManualSync() }
+        )
+
+        // 백그라운드 최적화 카드
+        BackgroundOptimizationCard(
+            workManagerStatus = uiState.workManagerStatus,
+            lastSyncSuccessTime = uiState.lastSyncSuccessTime,
+            lastSyncFailureTime = uiState.lastSyncFailureTime,
+            onToggleBackgroundSync = { viewModel.toggleBackgroundSync() },
+            onTriggerBackgroundSync = { viewModel.performManualSync() },
+            onForceRestartWorkManager = { viewModel.forceRestartWorkManager() },
+            onDiagnosisBackgroundRestrictions = { viewModel.diagnosisBackgroundRestrictions() },
+            onShowBackgroundOptimizationGuide = { viewModel.showBackgroundOptimizationGuide() },
+            onRequestBatteryOptimizationExemption = { viewModel.requestBatteryOptimizationExemption() },
+            onRequestAutoStartPermission = { viewModel.requestAutoStartPermission() },
+            isPermissionGranted = uiState.isPermissionGranted,
+            onLoadTodayData = { viewModel.loadTodayHealthData() }
         )
 
         // 건강 데이터 표시 카드
@@ -609,5 +627,176 @@ private fun formatRecordTime(recordTime: String): String {
         formatter.format(instant.atZone(java.time.ZoneId.systemDefault()))
     } catch (e: Exception) {
         recordTime.take(10) // 실패 시 앞 10자리만 표시
+    }
+}
+
+@Composable
+private fun BackgroundOptimizationCard(
+    workManagerStatus: String,
+    lastSyncSuccessTime: String?,
+    lastSyncFailureTime: String?,
+    onToggleBackgroundSync: () -> Unit,
+    onTriggerBackgroundSync: () -> Unit,
+    onForceRestartWorkManager: () -> Unit,
+    onDiagnosisBackgroundRestrictions: () -> Unit,
+    onShowBackgroundOptimizationGuide: () -> Unit,
+    onRequestBatteryOptimizationExemption: () -> Unit,
+    onRequestAutoStartPermission: () -> Unit,
+    isPermissionGranted: Boolean,
+    onLoadTodayData: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text(
+                text = "백그라운드 동기화 관리",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
+            )
+
+            Text(
+                text = workManagerStatus,
+                style = MaterialTheme.typography.bodyMedium,
+                color = when {
+                    workManagerStatus.contains("성공") -> MaterialTheme.colorScheme.primary
+                    workManagerStatus.contains("실패") -> MaterialTheme.colorScheme.error
+                    workManagerStatus.contains("실행 중") -> MaterialTheme.colorScheme.tertiary
+                    else -> MaterialTheme.colorScheme.onSurface
+                }
+            )
+
+            // 마지막 성공/실패 시간 표시
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                lastSyncSuccessTime?.let {
+                    Text(
+                        text = "✅ 성공: $it",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+                
+                lastSyncFailureTime?.let {
+                    Text(
+                        text = "❌ 실패: $it",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
+            }
+
+            // 기본 제어 버튼들
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Button(
+                    onClick = onTriggerBackgroundSync,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Refresh,
+                        contentDescription = "백그라운드 동기화 실행"
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("수동 실행")
+                }
+
+                OutlinedButton(
+                    onClick = onLoadTodayData,
+                    enabled = isPermissionGranted,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Search,
+                        contentDescription = "데이터 확인"
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("데이터 확인")
+                }
+            }
+
+            // 진단 및 최적화 버튼들
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                OutlinedButton(
+                    onClick = onDiagnosisBackgroundRestrictions,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Info,
+                        contentDescription = "진단"
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("진단")
+                }
+
+                OutlinedButton(
+                    onClick = onShowBackgroundOptimizationGuide,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.List,
+                        contentDescription = "가이드"
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("가이드")
+                }
+            }
+
+            // 시스템 설정 바로가기 버튼들
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                OutlinedButton(
+                    onClick = onRequestBatteryOptimizationExemption,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Settings,
+                        contentDescription = "배터리 최적화"
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("배터리 설정")
+                }
+
+                OutlinedButton(
+                    onClick = onRequestAutoStartPermission,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.PlayArrow,
+                        contentDescription = "자동 시작"
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("자동 시작")
+                }
+            }
+
+            // 고급 기능 (문제 해결)
+            OutlinedButton(
+                onClick = onForceRestartWorkManager,
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.outlinedButtonColors(
+                    contentColor = MaterialTheme.colorScheme.error
+                )
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Refresh,
+                    contentDescription = "WorkManager 재시작"
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                Text("WorkManager 재시작 (문제 해결시)")
+            }
+        }
     }
 } 

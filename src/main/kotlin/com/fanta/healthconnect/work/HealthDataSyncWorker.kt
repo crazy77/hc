@@ -64,54 +64,95 @@ class HealthDataSyncWorker(
                 return Result.success()
             }
 
-            // Health Connect 사용 가능 여부 확인
-            if (!healthConnectRepository.isHealthConnectAvailable()) {
-                Log.e(TAG, "Health Connect is not available")
-                return Result.failure()
-            }
-
-            // 권한 확인
-            if (!healthConnectRepository.checkPermissions()) {
-                Log.e(TAG, "Health Connect permissions not granted")
-                return Result.failure()
-            }
-
-            // 마지막 동기화 시간 확인
-            val lastSyncTime = userPreferences.lastSyncTime.first()
-                ?: Instant.now().minus(1, ChronoUnit.DAYS)
-
-            Log.d(TAG, "Last sync time: $lastSyncTime")
-
-            // 건강 데이터 수집
-            var totalRecords = 0
-            healthConnectRepository.getHealthDataSince(lastSyncTime).collect { healthRecords ->
-                totalRecords = healthRecords.size
-                Log.d(TAG, "Retrieved ${healthRecords.size} health records")
+            // Health Connect 초기화 재시도 로직 (백그라운드 실행 시 중요)
+            var healthConnectReady = false
+            var attempts = 0
+            val maxAttempts = 3
+            
+            while (!healthConnectReady && attempts < maxAttempts) {
+                attempts++
+                Log.d(TAG, "Health Connect initialization attempt $attempts/$maxAttempts")
                 
-                if (healthRecords.isNotEmpty()) {
-                    // 웹훅으로 데이터 전송
-                    Log.d(TAG, "Sending data to webhook: $webhookUrl")
-                    val result = webhookRepository.sendHealthData(
-                        webhookUrl = webhookUrl,
-                        healthRecords = healthRecords,
-                        userId = userId
-                    )
-
-                    if (result.isSuccess) {
-                        // 성공 시 마지막 동기화 시간 업데이트
-                        userPreferences.setLastSyncTime(Instant.now())
-                        Log.d(TAG, "Health data sync completed successfully")
+                // Health Connect 사용 가능 여부 확인
+                if (!healthConnectRepository.isHealthConnectAvailable()) {
+                    Log.w(TAG, "Health Connect is not available (attempt $attempts)")
+                    if (attempts < maxAttempts) {
+                        kotlinx.coroutines.delay(2000) // 2초 대기 후 재시도
+                        continue
                     } else {
-                        val error = result.exceptionOrNull()
-                        Log.e(TAG, "Failed to send data to webhook", error)
-                        return@collect
+                        Log.e(TAG, "Health Connect is not available after $maxAttempts attempts")
+                        return Result.failure()
                     }
-                } else {
-                    Log.d(TAG, "No new health data to sync")
+                }
+
+                // 권한 확인
+                if (!healthConnectRepository.checkPermissions()) {
+                    Log.w(TAG, "Health Connect permissions not granted (attempt $attempts)")
+                    if (attempts < maxAttempts) {
+                        kotlinx.coroutines.delay(2000) // 2초 대기 후 재시도
+                        continue
+                    } else {
+                        Log.e(TAG, "Health Connect permissions not granted after $maxAttempts attempts")
+                        return Result.failure()
+                    }
+                }
+                
+                healthConnectReady = true
+                Log.d(TAG, "Health Connect ready after $attempts attempts")
+            }
+
+            Log.d(TAG, "Fetching today's health data for background sync...")
+
+            // 오늘의 건강 데이터 수집 (재시도 로직 포함)
+            var totalRecords = 0
+            var dataFetchAttempts = 0
+            val maxDataAttempts = 2
+            
+            while (totalRecords == 0 && dataFetchAttempts < maxDataAttempts) {
+                dataFetchAttempts++
+                Log.d(TAG, "Health data fetch attempt $dataFetchAttempts/$maxDataAttempts")
+                
+                healthConnectRepository.getTodayHealthData().collect { healthRecords ->
+                    totalRecords = healthRecords.size
+                    Log.d(TAG, "Retrieved ${healthRecords.size} health records for today (attempt $dataFetchAttempts)")
+                    
+                    if (healthRecords.isNotEmpty()) {
+                        // 데이터 타입별 개수 로깅
+                        val dataTypeCounts = healthRecords.groupBy { it.type }.mapValues { it.value.size }
+                        Log.d(TAG, "Today's data by type: $dataTypeCounts")
+                        
+                        // 웹훅으로 데이터 전송
+                        Log.d(TAG, "Sending today's data to webhook: $webhookUrl")
+                        val result = webhookRepository.sendHealthData(
+                            webhookUrl = webhookUrl,
+                            healthRecords = healthRecords,
+                            userId = userId
+                        )
+
+                        if (result.isSuccess) {
+                            // 성공 시 마지막 동기화 시간 업데이트
+                            userPreferences.setLastSyncTime(Instant.now())
+                            Log.d(TAG, "Today's health data sync completed successfully, updated lastSyncTime to ${Instant.now()}")
+                        } else {
+                            val error = result.exceptionOrNull()
+                            Log.e(TAG, "Failed to send today's data to webhook", error)
+                            return@collect
+                        }
+                    } else {
+                        Log.d(TAG, "No health data found for today (attempt $dataFetchAttempts)")
+                        if (dataFetchAttempts < maxDataAttempts) {
+                            Log.d(TAG, "Waiting 3 seconds before retry...")
+                        }
+                    }
+                }
+                
+                // 데이터가 없고 재시도가 남았다면 대기
+                if (totalRecords == 0 && dataFetchAttempts < maxDataAttempts) {
+                    kotlinx.coroutines.delay(3000) // 3초 대기 후 재시도
                 }
             }
 
-            Log.d(TAG, "Work completed successfully with $totalRecords records")
+            Log.d(TAG, "Background sync completed successfully with $totalRecords records")
             
             // 성공 시간을 OutputData에 저장
             val finishTime = Instant.now()
@@ -119,6 +160,8 @@ class HealthDataSyncWorker(
                 .putString("finishTime", finishTime.toString())
                 .putString("status", "success")
                 .putInt("recordCount", totalRecords)
+                .putInt("initAttempts", attempts)
+                .putInt("dataAttempts", dataFetchAttempts)
                 .build()
             
             Result.success(outputData)

@@ -49,11 +49,26 @@ class HealthConnectRepository @Inject constructor(
     suspend fun checkPermissions(): Boolean {
         return try {
             if (!isHealthConnectAvailable()) {
+                Log.w("HealthConnectRepository", "Health Connect not available during permission check")
                 return false
             }
+            
+            Log.d("HealthConnectRepository", "Checking Health Connect permissions...")
             val grantedPermissions = healthConnectClient.permissionController.getGrantedPermissions()
-            permissions.all { it in grantedPermissions }
+            Log.d("HealthConnectRepository", "Granted permissions count: ${grantedPermissions.size}")
+            Log.d("HealthConnectRepository", "Required permissions count: ${permissions.size}")
+            
+            val missingPermissions = permissions.filter { it !in grantedPermissions }
+            if (missingPermissions.isNotEmpty()) {
+                Log.w("HealthConnectRepository", "Missing permissions: ${missingPermissions.map { it.toString() }}")
+            }
+            
+            val hasAllPermissions = permissions.all { it in grantedPermissions }
+            Log.d("HealthConnectRepository", "Has all permissions: $hasAllPermissions")
+            
+            hasAllPermissions
         } catch (e: Exception) {
+            Log.e("HealthConnectRepository", "Error checking permissions", e)
             false
         }
     }
@@ -129,36 +144,54 @@ class HealthConnectRepository @Inject constructor(
         val aggregatedRecords = mutableListOf<HealthRecord>()
         
         try {
+            Log.d("HealthConnectRepository", "Starting data aggregation for time range: ${timeRange}")
+            
             // 일자별 걸음수 집계 (합계)
+            Log.d("HealthConnectRepository", "Fetching daily steps...")
             val dailySteps = aggregateDailySteps(timeRange)
             aggregatedRecords.addAll(dailySteps)
+            Log.d("HealthConnectRepository", "Daily steps: ${dailySteps.size} records")
 
             // 일자별 칼로리 집계 (합계) 
+            Log.d("HealthConnectRepository", "Fetching daily calories...")
             val dailyCalories = aggregateDailyCalories(timeRange)
             aggregatedRecords.addAll(dailyCalories)
+            Log.d("HealthConnectRepository", "Daily calories: ${dailyCalories.size} records")
 
             // 일자별 체중 (최저값)
+            Log.d("HealthConnectRepository", "Fetching daily weight...")
             val dailyWeight = aggregateDailyWeight(timeRange)
             aggregatedRecords.addAll(dailyWeight)
+            Log.d("HealthConnectRepository", "Daily weight: ${dailyWeight.size} records")
 
             // 일자별 수면 데이터 (상세 분석)
+            Log.d("HealthConnectRepository", "Fetching daily sleep...")
             val dailySleep = aggregateDailySleep(timeRange)
             aggregatedRecords.addAll(dailySleep)
+            Log.d("HealthConnectRepository", "Daily sleep: ${dailySleep.size} records")
 
             // 심박수 데이터 (평균값)
+            Log.d("HealthConnectRepository", "Fetching heart rate...")
             val heartRateData = readHeartRateData(timeRange)
             aggregatedRecords.addAll(heartRateData)
+            Log.d("HealthConnectRepository", "Heart rate: ${heartRateData.size} records")
 
             // 운동 데이터
+            Log.d("HealthConnectRepository", "Fetching exercise data...")
             val exerciseData = readExerciseData(timeRange)
             aggregatedRecords.addAll(exerciseData)
+            Log.d("HealthConnectRepository", "Exercise: ${exerciseData.size} records")
 
             // 혈압 데이터
+            Log.d("HealthConnectRepository", "Fetching blood pressure...")
             val bloodPressureData = readBloodPressureData(timeRange)
             aggregatedRecords.addAll(bloodPressureData)
+            Log.d("HealthConnectRepository", "Blood pressure: ${bloodPressureData.size} records")
+
+            Log.d("HealthConnectRepository", "Total aggregated records: ${aggregatedRecords.size}")
 
         } catch (e: Exception) {
-            // 에러 처리
+            Log.e("HealthConnectRepository", "Error in aggregateHealthDataByDate", e)
         }
 
         return aggregatedRecords
@@ -166,17 +199,20 @@ class HealthConnectRepository @Inject constructor(
 
     private suspend fun aggregateDailySteps(timeRange: TimeRangeFilter): List<HealthRecord> {
         return try {
+            Log.d("HealthConnectRepository", "Reading steps records for time range...")
             val request = ReadRecordsRequest(
                 recordType = StepsRecord::class,
                 timeRangeFilter = timeRange
             )
             val response = healthConnectClient.readRecords(request)
+            Log.d("HealthConnectRepository", "Steps query result: ${response.records.size} raw records")
             
             // 일자별 걸음수 합계 계산
             val dailySteps = response.records
                 .groupBy { getDateString(it.startTime) }
                 .map { (date, records) ->
                     val totalSteps = records.sumOf { it.count }
+                    Log.d("HealthConnectRepository", "Steps for $date: $totalSteps steps from ${records.size} records")
                     HealthRecord(
                         type = HealthDataType.STEPS,
                         value = totalSteps.toString(),
@@ -189,8 +225,10 @@ class HealthConnectRepository @Inject constructor(
                     )
                 }
             
+            Log.d("HealthConnectRepository", "Aggregated steps: ${dailySteps.size} daily records")
             dailySteps
         } catch (e: Exception) {
+            Log.e("HealthConnectRepository", "Error reading steps data", e)
             emptyList()
         }
     }

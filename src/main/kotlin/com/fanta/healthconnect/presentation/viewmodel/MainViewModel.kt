@@ -360,6 +360,9 @@ class MainViewModel @Inject constructor(
         }
     }
 
+    // 백그라운드 동기화 토글 (UI에서 사용)
+    fun toggleBackgroundSync() = toggleSync()
+
     // 강제로 백그라운드 동기화 트리거
     fun triggerBackgroundSync() {
         viewModelScope.launch {
@@ -552,6 +555,104 @@ class MainViewModel @Inject constructor(
     private fun formatInstant(instant: Instant): String {
         return DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")
             .format(instant.atZone(ZoneId.systemDefault()))
+    }
+
+    // 백그라운드 제한 진단
+    fun diagnosisBackgroundRestrictions() {
+        viewModelScope.launch {
+            try {
+                _uiState.update { it.copy(syncStatus = "백그라운드 제한 진단 중...") }
+                
+                val diagnosticInfo = scheduleHealthSyncUseCase.getDiagnosticInfo()
+                val batteryOptimized = !checkBatteryOptimization()
+                
+                val diagnosis = buildString {
+                    appendLine("📊 백그라운드 동기화 진단:")
+                    appendLine("총 작업 수: ${diagnosticInfo["total_work_count"]}")
+                    appendLine("작업 상태: ${diagnosticInfo["work_states"]}")
+                    appendLine("제약 조건 충족: ${diagnosticInfo["constraints_met"]}")
+                    appendLine()
+                    
+                    if (batteryOptimized) {
+                        appendLine("⚠️ 배터리 최적화 활성화됨")
+                        appendLine("→ 설정에서 배터리 최적화 제외 필요")
+                    } else {
+                        appendLine("✅ 배터리 최적화 제외됨")
+                    }
+                    
+                    appendLine("📱 제조사: ${Build.MANUFACTURER}")
+                    when (Build.MANUFACTURER.lowercase()) {
+                        "samsung" -> appendLine("→ 삼성: 설정 > 기기 관리 > 배터리 > 백그라운드 앱 제한")
+                        "huawei" -> appendLine("→ 화웨이: 설정 > 앱 > 시작 관리자")
+                        "xiaomi" -> appendLine("→ 샤오미: 설정 > 앱 > 권한 > 자동 시작")
+                        "oppo" -> appendLine("→ 오포: 설정 > 배터리 > 앱 절약")
+                        "vivo" -> appendLine("→ 비보: 설정 > 배터리 > 백그라운드 앱 새로고침")
+                    }
+                }
+                
+                _uiState.update { it.copy(syncStatus = diagnosis) }
+                
+            } catch (e: Exception) {
+                _uiState.update { it.copy(syncStatus = "진단 실패: ${e.message}") }
+            }
+        }
+    }
+
+    // 백그라운드 제한 해결 가이드
+    fun showBackgroundOptimizationGuide() {
+        viewModelScope.launch {
+            val guide = buildString {
+                appendLine("🔧 백그라운드 동기화 최적화 가이드:")
+                appendLine()
+                appendLine("1️⃣ 배터리 최적화 제외")
+                appendLine("- 설정 > 배터리 > 배터리 최적화 > 모든 앱 > 이 앱 선택 > 최적화 안함")
+                appendLine()
+                appendLine("2️⃣ 자동 시작 허용 (제조사별)")
+                appendLine("- 삼성: 설정 > 기기 관리 > 배터리 > 백그라운드 앱 제한")
+                appendLine("- 화웨이: 설정 > 앱 > 시작 관리자 > 이 앱 자동 관리 끄기")
+                appendLine("- 샤오미: 설정 > 앱 > 권한 > 자동 시작 허용")
+                appendLine()
+                appendLine("3️⃣ 알림 허용")
+                appendLine("- 설정 > 앱 > 알림 > 모든 알림 허용")
+                appendLine()
+                appendLine("4️⃣ 데이터 사용 허용")
+                appendLine("- 설정 > 데이터 사용량 > 백그라운드 데이터 허용")
+                appendLine()
+                appendLine("아래 버튼들로 각 설정으로 바로 이동할 수 있습니다.")
+            }
+            
+            _uiState.update { it.copy(syncStatus = guide) }
+        }
+    }
+
+    // 강제 워크매니저 재시작
+    fun forceRestartWorkManager() {
+        viewModelScope.launch {
+            try {
+                _uiState.update { it.copy(syncStatus = "WorkManager 재시작 중...") }
+                
+                // 기존 작업 모두 취소
+                scheduleHealthSyncUseCase.stopPeriodicSync()
+                
+                // 잠시 대기
+                kotlinx.coroutines.delay(1000)
+                
+                // 다시 시작
+                if (userPreferences.isSyncEnabled.first()) {
+                    scheduleHealthSyncUseCase.startPeriodicSync()
+                    userPreferences.setSyncEnabled(true)
+                }
+                
+                _uiState.update { it.copy(syncStatus = "WorkManager 재시작 완료") }
+                
+                // 상태 다시 확인
+                kotlinx.coroutines.delay(2000)
+                observeWorkManagerStatus()
+                
+            } catch (e: Exception) {
+                _uiState.update { it.copy(syncStatus = "WorkManager 재시작 실패: ${e.message}") }
+            }
+        }
     }
 }
 

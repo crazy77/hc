@@ -1,6 +1,7 @@
 ---
 description: 
 globs: 
-alwaysApply: false
+alwaysApply: true
 ---
-빌드는 내가 안드로이드 스튜디오에서 할거니까 하지마
+빌드 실행할때는 이걸로 해야 한다.
+C:\Program Files\Android\gradle-8.14.1\bin\gradle.bat 

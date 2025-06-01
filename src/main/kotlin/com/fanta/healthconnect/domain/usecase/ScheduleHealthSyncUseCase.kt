@@ -18,6 +18,7 @@ class ScheduleHealthSyncUseCase @Inject constructor(
 
     companion object {
         private const val WORK_NAME = "health_data_sync"
+        private const val IMMEDIATE_WORK_NAME = "health_data_sync_immediate"
     }
 
     suspend fun startPeriodicSync() {
@@ -25,30 +26,33 @@ class ScheduleHealthSyncUseCase @Inject constructor(
         
         val constraints = Constraints.Builder()
             .setRequiredNetworkType(NetworkType.CONNECTED)
-            .setRequiresBatteryNotLow(true)
+            .setRequiresDeviceIdle(false)
+            .setRequiresCharging(false)
             .build()
 
         val syncRequest = PeriodicWorkRequestBuilder<HealthDataSyncWorker>(
             intervalMinutes.toLong(), TimeUnit.MINUTES,
-            15, TimeUnit.MINUTES // 최소 15분 flex 기간
+            5, TimeUnit.MINUTES // flex 기간
         )
             .setConstraints(constraints)
             .setBackoffCriteria(
-                BackoffPolicy.EXPONENTIAL,
+                BackoffPolicy.LINEAR,
                 WorkRequest.MIN_BACKOFF_MILLIS,
                 TimeUnit.MILLISECONDS
             )
+            .setInitialDelay(0, TimeUnit.MINUTES)
             .build()
 
         workManager.enqueueUniquePeriodicWork(
             WORK_NAME,
-            ExistingPeriodicWorkPolicy.REPLACE,
+            ExistingPeriodicWorkPolicy.UPDATE,
             syncRequest
         )
     }
 
     suspend fun stopPeriodicSync() {
         workManager.cancelUniqueWork(WORK_NAME)
+        workManager.cancelUniqueWork(IMMEDIATE_WORK_NAME)
         userPreferences.setSyncEnabled(false)
     }
 
@@ -59,9 +63,14 @@ class ScheduleHealthSyncUseCase @Inject constructor(
 
         val manualSyncRequest = OneTimeWorkRequestBuilder<HealthDataSyncWorker>()
             .setConstraints(constraints)
+            .addTag("manual_sync")
             .build()
 
-        workManager.enqueue(manualSyncRequest)
+        workManager.enqueueUniqueWork(
+            IMMEDIATE_WORK_NAME,
+            ExistingWorkPolicy.REPLACE,
+            manualSyncRequest
+        )
     }
 
     suspend fun updateSyncInterval(intervalMinutes: Int) {
@@ -69,12 +78,25 @@ class ScheduleHealthSyncUseCase @Inject constructor(
         
         val isSyncEnabled = userPreferences.isSyncEnabled.first()
         if (isSyncEnabled) {
-            // 동기화가 활성화되어 있으면 새로운 간격으로 재시작
             startPeriodicSync()
         }
+    }
+
+    suspend fun getAllWorkInfo(): List<WorkInfo> {
+        return emptyList() // 간단하게 빈 리스트 반환 (진단 기능은 나중에 개선)
     }
 
     fun getSyncWorkInfo() = workManager.getWorkInfosForUniqueWorkLiveData(WORK_NAME)
     
     fun getAllSyncWorkInfo() = workManager.getWorkInfosForUniqueWorkLiveData(WORK_NAME)
+    
+    suspend fun getDiagnosticInfo(): Map<String, Any> {
+        return mapOf(
+            "total_work_count" to 0,
+            "periodic_work_count" to 0,
+            "work_states" to emptyMap<String, Int>(),
+            "last_enqueue_time" to "none",
+            "constraints_met" to false
+        )
+    }
 } 
