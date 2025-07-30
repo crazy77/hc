@@ -24,6 +24,9 @@ data class HealthRecord(
 enum class HealthDataType {
     STEPS,
     HEART_RATE,
+    HEART_RATE_AVERAGE,
+    HEART_RATE_MAX,
+    HEART_RATE_MIN,
     WEIGHT,
     SLEEP_TOTAL,
     SLEEP_DEEP,
@@ -31,7 +34,15 @@ enum class HealthDataType {
     SLEEP_REM,
     EXERCISE,
     BLOOD_PRESSURE,
-    CALORIES
+    CALORIES,
+    BLOOD_GLUCOSE,
+    BLOOD_GLUCOSE_MAX,
+    BLOOD_GLUCOSE_MIN,
+    BODY_FAT,
+    MUSCLE_MASS,
+    BODY_WATER,
+    BONE_MASS,
+    VISCERAL_FAT_INDEX
 }
 
 data class StepsData(

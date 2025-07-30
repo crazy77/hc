@@ -35,7 +35,13 @@ class HealthConnectRepository @Inject constructor(
         HealthPermission.getReadPermission(SleepSessionRecord::class),
         HealthPermission.getReadPermission(ExerciseSessionRecord::class),
         HealthPermission.getReadPermission(BloodPressureRecord::class),
-        HealthPermission.getReadPermission(TotalCaloriesBurnedRecord::class)
+        HealthPermission.getReadPermission(TotalCaloriesBurnedRecord::class),
+        HealthPermission.getReadPermission(BloodGlucoseRecord::class),
+        HealthPermission.getReadPermission(BodyFatRecord::class),
+        HealthPermission.getReadPermission(LeanBodyMassRecord::class),
+        HealthPermission.getReadPermission(HydrationRecord::class),
+        HealthPermission.getReadPermission(BoneMassRecord::class),
+        HealthPermission.getReadPermission(VisceralFatRecord::class)
     )
 
     suspend fun isHealthConnectAvailable(): Boolean {
@@ -175,6 +181,48 @@ class HealthConnectRepository @Inject constructor(
             val heartRateData = readHeartRateData(timeRange)
             aggregatedRecords.addAll(heartRateData)
             Log.d("HealthConnectRepository", "Heart rate: ${heartRateData.size} records")
+
+            // 심박수 집계 데이터 (평균, 최고, 최저)
+            Log.d("HealthConnectRepository", "Fetching aggregated heart rate...")
+            val aggregatedHeartRate = aggregateDailyHeartRate(timeRange)
+            aggregatedRecords.addAll(aggregatedHeartRate)
+            Log.d("HealthConnectRepository", "Aggregated heart rate: ${aggregatedHeartRate.size} records")
+
+            // 혈당 데이터 (최고, 최저)
+            Log.d("HealthConnectRepository", "Fetching blood glucose...")
+            val bloodGlucoseData = aggregateDailyBloodGlucose(timeRange)
+            aggregatedRecords.addAll(bloodGlucoseData)
+            Log.d("HealthConnectRepository", "Blood glucose: ${bloodGlucoseData.size} records")
+
+            // 체지방 데이터 (최저값)
+            Log.d("HealthConnectRepository", "Fetching body fat...")
+            val bodyFatData = aggregateDailyBodyFat(timeRange)
+            aggregatedRecords.addAll(bodyFatData)
+            Log.d("HealthConnectRepository", "Body fat: ${bodyFatData.size} records")
+
+            // 근육량 데이터 (최저값)
+            Log.d("HealthConnectRepository", "Fetching muscle mass...")
+            val muscleMassData = aggregateDailyMuscleMass(timeRange)
+            aggregatedRecords.addAll(muscleMassData)
+            Log.d("HealthConnectRepository", "Muscle mass: ${muscleMassData.size} records")
+
+            // 체수분량 데이터 (최저값)
+            Log.d("HealthConnectRepository", "Fetching body water...")
+            val bodyWaterData = aggregateDailyBodyWater(timeRange)
+            aggregatedRecords.addAll(bodyWaterData)
+            Log.d("HealthConnectRepository", "Body water: ${bodyWaterData.size} records")
+
+            // 골량 데이터 (최저값)
+            Log.d("HealthConnectRepository", "Fetching bone mass...")
+            val boneMassData = aggregateDailyBoneMass(timeRange)
+            aggregatedRecords.addAll(boneMassData)
+            Log.d("HealthConnectRepository", "Bone mass: ${boneMassData.size} records")
+
+            // 내장지방지수 데이터 (최저값)
+            Log.d("HealthConnectRepository", "Fetching visceral fat index...")
+            val visceralFatData = aggregateDailyVisceralFatIndex(timeRange)
+            aggregatedRecords.addAll(visceralFatData)
+            Log.d("HealthConnectRepository", "Visceral fat index: ${visceralFatData.size} records")
 
             // 운동 데이터
             Log.d("HealthConnectRepository", "Fetching exercise data...")
@@ -548,28 +596,6 @@ class HealthConnectRepository @Inject constructor(
         }
     }
 
-    private suspend fun readHeartRateData(timeRange: TimeRangeFilter): List<HealthRecord> {
-        return try {
-            val request = ReadRecordsRequest(
-                recordType = HeartRateRecord::class,
-                timeRangeFilter = timeRange
-            )
-            val response = healthConnectClient.readRecords(request)
-            response.records.flatMap { record ->
-                record.samples.map { sample ->
-                    HealthRecord(
-                        type = HealthDataType.HEART_RATE,
-                        value = sample.beatsPerMinute.toString(),
-                        unit = "bpm",
-                        recordTime = sample.time.toString()
-                    )
-                }
-            }
-        } catch (e: Exception) {
-            emptyList()
-        }
-    }
-
     private suspend fun readWeightData(timeRange: TimeRangeFilter): List<HealthRecord> {
         return try {
             val request = ReadRecordsRequest(
@@ -609,6 +635,321 @@ class HealthConnectRepository @Inject constructor(
                     )
                 )
             }
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
+    private suspend fun readHeartRateData(timeRange: TimeRangeFilter): List<HealthRecord> {
+        return try {
+            val request = ReadRecordsRequest(
+                recordType = HeartRateRecord::class,
+                timeRangeFilter = timeRange
+            )
+            val response = healthConnectClient.readRecords(request)
+            response.records.flatMap { record ->
+                record.samples.map { sample ->
+                    HealthRecord(
+                        type = HealthDataType.HEART_RATE,
+                        value = sample.beatsPerMinute.toString(),
+                        unit = "bpm",
+                        recordTime = sample.time.toString()
+                    )
+                }
+            }
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
+    private suspend fun aggregateDailyHeartRate(timeRange: TimeRangeFilter): List<HealthRecord> {
+        return try {
+            Log.d("HealthConnectRepository", "Reading heart rate records for aggregation...")
+            val request = ReadRecordsRequest(
+                recordType = HeartRateRecord::class,
+                timeRangeFilter = timeRange
+            )
+            val response = healthConnectClient.readRecords(request)
+            Log.d("HealthConnectRepository", "Heart rate query result: ${response.records.size} raw records")
+            
+            // 일자별 심박수 집계 (평균, 최고, 최저)
+            val dailyHeartRate = response.records
+                .flatMap { record -> record.samples }
+                .groupBy { getDateString(it.time) }
+                .map { (date, samples) ->
+                    val values = samples.map { it.beatsPerMinute }
+                    val average = values.average()
+                    val max = values.maxOrNull() ?: 0
+                    val min = values.minOrNull() ?: 0
+                    
+                    Log.d("HealthConnectRepository", "Heart rate for $date: avg=${average.toInt()}, max=$max, min=$min from ${samples.size} samples")
+                    
+                    listOf(
+                        HealthRecord(
+                            type = HealthDataType.HEART_RATE_AVERAGE,
+                            value = average.toInt().toString(),
+                            unit = "bpm",
+                            recordTime = "${date}T00:00:00Z",
+                            metadata = mapOf(
+                                "date" to date,
+                                "sampleCount" to samples.size.toString()
+                            )
+                        ),
+                        HealthRecord(
+                            type = HealthDataType.HEART_RATE_MAX,
+                            value = max.toString(),
+                            unit = "bpm",
+                            recordTime = "${date}T00:00:00Z",
+                            metadata = mapOf(
+                                "date" to date,
+                                "sampleCount" to samples.size.toString()
+                            )
+                        ),
+                        HealthRecord(
+                            type = HealthDataType.HEART_RATE_MIN,
+                            value = min.toString(),
+                            unit = "bpm",
+                            recordTime = "${date}T00:00:00Z",
+                            metadata = mapOf(
+                                "date" to date,
+                                "sampleCount" to samples.size.toString()
+                            )
+                        )
+                    )
+                }
+                .flatten()
+            
+            Log.d("HealthConnectRepository", "Aggregated heart rate: ${dailyHeartRate.size} records")
+            dailyHeartRate
+        } catch (e: Exception) {
+            Log.e("HealthConnectRepository", "Error reading heart rate data for aggregation", e)
+            emptyList()
+        }
+    }
+
+    private suspend fun aggregateDailyBloodGlucose(timeRange: TimeRangeFilter): List<HealthRecord> {
+        return try {
+            val request = ReadRecordsRequest(
+                recordType = BloodGlucoseRecord::class,
+                timeRangeFilter = timeRange
+            )
+            val response = healthConnectClient.readRecords(request)
+            
+            // 일자별 혈당 데이터 집계 (최고, 최저)
+            val dailyBloodGlucose = response.records
+                .groupBy { getDateString(it.time) }
+                .map { (date, records) ->
+                    val maxGlucose = records.maxOfOrNull { it.value.inMillimolesPerLiter } ?: 0
+                    val minGlucose = records.minOfOrNull { it.value.inMillimolesPerLiter } ?: 0
+                    
+                    Log.d("HealthConnectRepository", "Blood glucose for $date: max=$maxGlucose, min=$minGlucose from ${records.size} records")
+                    
+                    listOf(
+                        HealthRecord(
+                            type = HealthDataType.BLOOD_GLUCOSE_MAX,
+                            value = maxGlucose.toString(),
+                            unit = "mmol/L",
+                            recordTime = "${date}T00:00:00Z",
+                            metadata = mapOf(
+                                "date" to date,
+                                "recordCount" to records.size.toString()
+                            )
+                        ),
+                        HealthRecord(
+                            type = HealthDataType.BLOOD_GLUCOSE_MIN,
+                            value = minGlucose.toString(),
+                            unit = "mmol/L",
+                            recordTime = "${date}T00:00:00Z",
+                            metadata = mapOf(
+                                "date" to date,
+                                "recordCount" to records.size.toString()
+                            )
+                        )
+                    )
+                }
+                .flatten()
+            
+            dailyBloodGlucose
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
+    private suspend fun aggregateDailyBodyFat(timeRange: TimeRangeFilter): List<HealthRecord> {
+        return try {
+            val request = ReadRecordsRequest(
+                recordType = BodyFatRecord::class,
+                timeRangeFilter = timeRange
+            )
+            val response = healthConnectClient.readRecords(request)
+            
+            // 일자별 체지방 데이터 집계 (최저값)
+            val dailyBodyFat = response.records
+                .groupBy { getDateString(it.time) }
+                .mapNotNull { (date, records) ->
+                    val minBodyFat = records.minOfOrNull { it.value.inKilograms } ?: 0
+                    
+                    Log.d("HealthConnectRepository", "Body fat for $date: min=$minBodyFat from ${records.size} records")
+                    
+                    minBodyFat?.let {
+                        HealthRecord(
+                            type = HealthDataType.BODY_FAT,
+                            value = String.format("%.1f", it),
+                            unit = "kg",
+                            recordTime = "${date}T00:00:00Z",
+                            metadata = mapOf(
+                                "date" to date,
+                                "recordCount" to records.size.toString()
+                            )
+                        )
+                    }
+                }
+            
+            dailyBodyFat
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
+    private suspend fun aggregateDailyMuscleMass(timeRange: TimeRangeFilter): List<HealthRecord> {
+        return try {
+            val request = ReadRecordsRequest(
+                recordType = LeanBodyMassRecord::class,
+                timeRangeFilter = timeRange
+            )
+            val response = healthConnectClient.readRecords(request)
+            
+            // 일자별 근육량 데이터 집계 (최저값)
+            val dailyMuscleMass = response.records
+                .groupBy { getDateString(it.time) }
+                .mapNotNull { (date, records) ->
+                    val minMuscleMass = records.minOfOrNull { it.value.inKilograms }
+                    
+                    Log.d("HealthConnectRepository", "Muscle mass for $date: min=$minMuscleMass from ${records.size} records")
+                    
+                    minMuscleMass?.let {
+                        HealthRecord(
+                            type = HealthDataType.MUSCLE_MASS,
+                            value = String.format("%.1f", it),
+                            unit = "kg",
+                            recordTime = "${date}T00:00:00Z",
+                            metadata = mapOf(
+                                "date" to date,
+                                "recordCount" to records.size.toString()
+                            )
+                        )
+                    }
+                }
+            
+            dailyMuscleMass
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
+    private suspend fun aggregateDailyBodyWater(timeRange: TimeRangeFilter): List<HealthRecord> {
+        return try {
+            val request = ReadRecordsRequest(
+                recordType = HydrationRecord::class,
+                timeRangeFilter = timeRange
+            )
+            val response = healthConnectClient.readRecords(request)
+            
+            // 일자별 체수분량 데이터 집계 (최저값)
+            val dailyBodyWater = response.records
+                .groupBy { getDateString(it.time) }
+                .mapNotNull { (date, records) ->
+                    val minBodyWater = records.minOfOrNull { it.value.inLiters }
+                    
+                    Log.d("HealthConnectRepository", "Body water for $date: min=$minBodyWater from ${records.size} records")
+                    
+                    minBodyWater?.let {
+                        HealthRecord(
+                            type = HealthDataType.BODY_WATER,
+                            value = String.format("%.1f", it),
+                            unit = "L",
+                            recordTime = "${date}T00:00:00Z",
+                            metadata = mapOf(
+                                "date" to date,
+                                "recordCount" to records.size.toString()
+                            )
+                        )
+                    }
+                }
+            
+            dailyBodyWater
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
+    private suspend fun aggregateDailyBoneMass(timeRange: TimeRangeFilter): List<HealthRecord> {
+        return try {
+            val request = ReadRecordsRequest(
+                recordType = BoneMassRecord::class,
+                timeRangeFilter = timeRange
+            )
+            val response = healthConnectClient.readRecords(request)
+            
+            // 일자별 골량 데이터 집계 (최저값)
+            val dailyBoneMass = response.records
+                .groupBy { getDateString(it.time) }
+                .mapNotNull { (date, records) ->
+                    val minBoneMass = records.minOfOrNull { it.value.inKilograms }
+                    
+                    Log.d("HealthConnectRepository", "Bone mass for $date: min=$minBoneMass from ${records.size} records")
+                    
+                    minBoneMass?.let {
+                        HealthRecord(
+                            type = HealthDataType.BONE_MASS,
+                            value = String.format("%.1f", it),
+                            unit = "kg",
+                            recordTime = "${date}T00:00:00Z",
+                            metadata = mapOf(
+                                "date" to date,
+                                "recordCount" to records.size.toString()
+                            )
+                        )
+                    }
+                }
+            
+            dailyBoneMass
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
+    private suspend fun aggregateDailyVisceralFatIndex(timeRange: TimeRangeFilter): List<HealthRecord> {
+        return try {
+            val request = ReadRecordsRequest(
+                recordType = VisceralFatRecord::class,
+                timeRangeFilter = timeRange
+            )
+            val response = healthConnectClient.readRecords(request)
+            
+            // 일자별 내장지방지수 데이터 집계 (최저값)
+            val dailyVisceralFat = response.records
+                .groupBy { getDateString(it.time) }
+                .mapNotNull { (date, records) ->
+                    val minVisceralFat = records.minOfOrNull { it.value.inKilograms }
+                    
+                    Log.d("HealthConnectRepository", "Visceral fat index for $date: min=$minVisceralFat from ${records.size} records")
+                    
+                    minVisceralFat?.let {
+                        HealthRecord(
+                            type = HealthDataType.VISCERAL_FAT_INDEX,
+                            value = String.format("%.1f", it),
+                            unit = "kg",
+                            recordTime = "${date}T00:00:00Z",
+                            metadata = mapOf(
+                                "date" to date,
+                                "recordCount" to records.size.toString()
+                            )
+                        )
+                    }
+                }
+            
+            dailyVisceralFat
         } catch (e: Exception) {
             emptyList()
         }
