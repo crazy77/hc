@@ -236,10 +236,12 @@ class MainViewModel @Inject constructor(
     fun requestHealthConnectPermissions() {
         viewModelScope.launch {
             try {
+                Log.d("MainViewModel", "권한 요청 시작")
                 _uiState.update { it.copy(syncStatus = "Health Connect 확인 중...") }
                 
                 // Health Connect가 사용 가능한지 확인
                 if (!healthConnectRepository.isHealthConnectAvailable()) {
+                    Log.d("MainViewModel", "Health Connect 사용 불가")
                     _uiState.update { 
                         it.copy(
                             isPermissionGranted = false,
@@ -249,8 +251,12 @@ class MainViewModel @Inject constructor(
                     return@launch
                 }
                 
+                Log.d("MainViewModel", "Health Connect 사용 가능, 권한 확인 중...")
+                
                 // 권한 확인
                 val isPermissionGranted = healthConnectRepository.checkPermissions()
+                Log.d("MainViewModel", "권한 상태: $isPermissionGranted")
+                
                 if (isPermissionGranted) {
                     _uiState.update { 
                         it.copy(
@@ -269,6 +275,7 @@ class MainViewModel @Inject constructor(
                     }
                 }
             } catch (e: Exception) {
+                Log.e("MainViewModel", "권한 요청 중 오류 발생", e)
                 _uiState.update { 
                     it.copy(
                         isPermissionGranted = false,
@@ -282,7 +289,10 @@ class MainViewModel @Inject constructor(
     fun refreshPermissionStatus() {
         viewModelScope.launch {
             try {
+                Log.d("MainViewModel", "권한 상태 새로고침 시작")
+                
                 if (!healthConnectRepository.isHealthConnectAvailable()) {
+                    Log.d("MainViewModel", "Health Connect 사용 불가")
                     _uiState.update { 
                         it.copy(
                             isPermissionGranted = false,
@@ -292,7 +302,10 @@ class MainViewModel @Inject constructor(
                     return@launch
                 }
                 
+                Log.d("MainViewModel", "Health Connect 사용 가능, 권한 확인 중...")
                 val isGranted = healthConnectRepository.checkPermissions()
+                Log.d("MainViewModel", "권한 상태: $isGranted")
+                
                 _uiState.update { 
                     it.copy(
                         isPermissionGranted = isGranted,
@@ -300,11 +313,15 @@ class MainViewModel @Inject constructor(
                     ) 
                 }
                 
+                Log.d("MainViewModel", "UI 상태 업데이트 완료 - 권한: $isGranted")
+                
                 // 권한이 새로 승인되었으면 오늘 건강 데이터 로드
                 if (isGranted) {
+                    Log.d("MainViewModel", "권한 허용됨, 오늘 건강 데이터 로드 시작")
                     loadTodayHealthData()
                 }
             } catch (e: Exception) {
+                Log.e("MainViewModel", "권한 상태 확인 중 오류 발생", e)
                 _uiState.update { 
                     it.copy(
                         isPermissionGranted = false,

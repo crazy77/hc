@@ -25,6 +25,10 @@ import com.fanta.healthconnect.presentation.viewmodel.MainViewModel
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -48,6 +52,8 @@ fun MainScreen(
         PermissionStatusCard(
             isPermissionGranted = uiState.isPermissionGranted,
             onRequestPermissions = { 
+                android.util.Log.d("MainScreen", "권한 요청 버튼 클릭됨")
+                android.util.Log.d("MainScreen", "onRequestPermissions null 여부: ${onRequestPermissions == null}")
                 onRequestPermissions?.invoke() ?: viewModel.requestHealthConnectPermissions()
             },
             onRefreshPermissions = { viewModel.refreshPermissionStatus() }
@@ -242,6 +248,8 @@ private fun PermissionStatusCard(
     onRequestPermissions: () -> Unit,
     onRefreshPermissions: () -> Unit
 ) {
+    var isRequestingPermission by remember { mutableStateOf(false) }
+    
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
@@ -262,7 +270,11 @@ private fun PermissionStatusCard(
             )
             
             Text(
-                text = if (isPermissionGranted) "권한 승인됨" else "권한 필요",
+                text = when {
+                    isRequestingPermission -> "권한 요청 중..."
+                    isPermissionGranted -> "권한 승인됨"
+                    else -> "권한 필요"
+                },
                 style = MaterialTheme.typography.bodyMedium
             )
 
@@ -270,16 +282,42 @@ private fun PermissionStatusCard(
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 if (!isPermissionGranted) {
+                    android.util.Log.d("MainScreen", "권한 요청 버튼 표시됨 (isPermissionGranted: $isPermissionGranted)")
                     Button(
-                        onClick = onRequestPermissions,
-                        modifier = Modifier.weight(1f)
+                        onClick = {
+                            android.util.Log.d("MainScreen", "권한 요청 버튼 클릭됨 (PermissionStatusCard)")
+                            isRequestingPermission = true
+                            onRequestPermissions()
+                            // 3초 후에 요청 상태를 리셋 (권한 다이얼로그가 나타나지 않는 경우를 대비)
+                            CoroutineScope(Dispatchers.Main).launch {
+                                delay(3000)
+                                isRequestingPermission = false
+                            }
+                        },
+                        modifier = Modifier.weight(1f),
+                        enabled = !isRequestingPermission
                     ) {
-                        Text("권한 요청")
+                        if (isRequestingPermission) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(16.dp),
+                                strokeWidth = 2.dp
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("요청 중...")
+                        } else {
+                            Text("권한 요청")
+                        }
                     }
+                } else {
+                    android.util.Log.d("MainScreen", "권한 요청 버튼 숨김됨 (isPermissionGranted: $isPermissionGranted)")
                 }
                 
                 OutlinedButton(
-                    onClick = onRefreshPermissions
+                    onClick = {
+                        onRefreshPermissions()
+                        isRequestingPermission = false
+                    },
+                    enabled = !isRequestingPermission
                 ) {
                     Icon(
                         imageVector = Icons.Default.Refresh,
@@ -593,6 +631,9 @@ private fun getDataTypeDisplayName(dataType: HealthDataType): String {
     return when (dataType) {
         HealthDataType.STEPS -> "걸음수 (일일 합계)"
         HealthDataType.HEART_RATE -> "심박수"
+        HealthDataType.HEART_RATE_AVERAGE -> "심박수 (평균)"
+        HealthDataType.HEART_RATE_MAX -> "심박수 (최고)"
+        HealthDataType.HEART_RATE_MIN -> "심박수 (최저)"
         HealthDataType.WEIGHT -> "체중 (일일 최저)"
         HealthDataType.SLEEP_TOTAL -> "총 수면시간"
         HealthDataType.SLEEP_DEEP -> "깊은 수면"
@@ -601,6 +642,13 @@ private fun getDataTypeDisplayName(dataType: HealthDataType): String {
         HealthDataType.EXERCISE -> "운동"
         HealthDataType.BLOOD_PRESSURE -> "혈압"
         HealthDataType.CALORIES -> "칼로리 (일일 합계)"
+        HealthDataType.BLOOD_GLUCOSE -> "혈당"
+        HealthDataType.BLOOD_GLUCOSE_MAX -> "혈당 (최고)"
+        HealthDataType.BLOOD_GLUCOSE_MIN -> "혈당 (최저)"
+        HealthDataType.BODY_FAT -> "체지방"
+        HealthDataType.MUSCLE_MASS -> "근육량"
+        HealthDataType.BODY_WATER -> "체수분량"
+        HealthDataType.BONE_MASS -> "골량"
     }
 }
 
@@ -714,7 +762,7 @@ private fun BackgroundOptimizationCard(
                     modifier = Modifier.weight(1f)
                 ) {
                     Icon(
-                        imageVector = Icons.Default.Search,
+                        imageVector = Icons.Default.DateRange,
                         contentDescription = "데이터 확인"
                     )
                     Spacer(modifier = Modifier.width(4.dp))

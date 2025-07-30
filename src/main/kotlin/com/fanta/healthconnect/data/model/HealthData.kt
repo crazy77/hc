@@ -41,8 +41,7 @@ enum class HealthDataType {
     BODY_FAT,
     MUSCLE_MASS,
     BODY_WATER,
-    BONE_MASS,
-    VISCERAL_FAT_INDEX
+    BONE_MASS
 }
 
 data class StepsData(

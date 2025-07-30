@@ -1,0 +1,379 @@
+[
+  {
+    "headers": {
+      "connection": "close",
+      "host": "n8n-mini.crazy77.synology.me",
+      "x-real-ip": "192.168.2.1",
+      "x-forwarded-for": "192.168.2.1",
+      "x-forwarded-proto": "https",
+      "content-length": "5121",
+      "content-type": "application/json; charset=UTF-8",
+      "accept-encoding": "gzip",
+      "user-agent": "okhttp/4.12.0"
+    },
+    "params": {},
+    "query": {},
+    "body": {
+      "data": [
+        {
+          "metadata": {
+            "date": "2025-07-22",
+            "recordCount": "8"
+          },
+          "recordTime": "2025-07-22T00:00:00Z",
+          "type": "STEPS",
+          "unit": "steps",
+          "value": "5963"
+        },
+        {
+          "metadata": {
+            "date": "2025-07-22",
+            "recordCount": "9"
+          },
+          "recordTime": "2025-07-22T00:00:00Z",
+          "type": "CALORIES",
+          "unit": "cal",
+          "value": "2138958.7"
+        },
+        {
+          "metadata": {
+            "date": "2025-07-22",
+            "recordCount": "3",
+            "minValue": "true"
+          },
+          "recordTime": "2025-07-22T00:00:00Z",
+          "type": "WEIGHT",
+          "unit": "kg",
+          "value": "95.6"
+        },
+        {
+          "metadata": {
+            "date": "2025-07-22",
+            "sessionCount": "1",
+            "hasStagesData": "true",
+            "calculationMethod": "stages"
+          },
+          "recordTime": "2025-07-22T00:00:00Z",
+          "type": "SLEEP_TOTAL",
+          "unit": "minutes",
+          "value": "283"
+        },
+        {
+          "metadata": {
+            "date": "2025-07-22",
+            "fromStages": "true"
+          },
+          "recordTime": "2025-07-22T00:00:00Z",
+          "type": "SLEEP_DEEP",
+          "unit": "minutes",
+          "value": "100"
+        },
+        {
+          "metadata": {
+            "date": "2025-07-22",
+            "fromStages": "true"
+          },
+          "recordTime": "2025-07-22T00:00:00Z",
+          "type": "SLEEP_LIGHT",
+          "unit": "minutes",
+          "value": "135"
+        },
+        {
+          "metadata": {
+            "date": "2025-07-22",
+            "fromStages": "true"
+          },
+          "recordTime": "2025-07-22T00:00:00Z",
+          "type": "SLEEP_REM",
+          "unit": "minutes",
+          "value": "48"
+        },
+        {
+          "metadata": {},
+          "recordTime": "2025-07-22T08:20:29.323Z",
+          "type": "HEART_RATE",
+          "unit": "bpm",
+          "value": "93"
+        },
+        {
+          "metadata": {},
+          "recordTime": "2025-07-22T08:30:29.328Z",
+          "type": "HEART_RATE",
+          "unit": "bpm",
+          "value": "90"
+        },
+        {
+          "metadata": {},
+          "recordTime": "2025-07-22T08:31:51.241Z",
+          "type": "HEART_RATE",
+          "unit": "bpm",
+          "value": "98"
+        },
+        {
+          "metadata": {},
+          "recordTime": "2025-07-22T08:31:52.243Z",
+          "type": "HEART_RATE",
+          "unit": "bpm",
+          "value": "97"
+        },
+        {
+          "metadata": {},
+          "recordTime": "2025-07-22T08:31:53.247Z",
+          "type": "HEART_RATE",
+          "unit": "bpm",
+          "value": "96"
+        },
+        {
+          "metadata": {},
+          "recordTime": "2025-07-22T08:31:55.252Z",
+          "type": "HEART_RATE",
+          "unit": "bpm",
+          "value": "94"
+        },
+        {
+          "metadata": {},
+          "recordTime": "2025-07-22T08:31:56.256Z",
+          "type": "HEART_RATE",
+          "unit": "bpm",
+          "value": "93"
+        },
+        {
+          "metadata": {},
+          "recordTime": "2025-07-22T08:31:57.260Z",
+          "type": "HEART_RATE",
+          "unit": "bpm",
+          "value": "92"
+        },
+        {
+          "metadata": {},
+          "recordTime": "2025-07-22T08:31:58.262Z",
+          "type": "HEART_RATE",
+          "unit": "bpm",
+          "value": "92"
+        },
+        {
+          "metadata": {},
+          "recordTime": "2025-07-22T08:31:59.264Z",
+          "type": "HEART_RATE",
+          "unit": "bpm",
+          "value": "93"
+        },
+        {
+          "metadata": {},
+          "recordTime": "2025-07-22T08:32:21.316Z",
+          "type": "HEART_RATE",
+          "unit": "bpm",
+          "value": "99"
+        },
+        {
+          "metadata": {},
+          "recordTime": "2025-07-22T08:32:22.318Z",
+          "type": "HEART_RATE",
+          "unit": "bpm",
+          "value": "99"
+        },
+        {
+          "metadata": {},
+          "recordTime": "2025-07-22T08:40:41.651Z",
+          "type": "HEART_RATE",
+          "unit": "bpm",
+          "value": "88"
+        },
+        {
+          "metadata": {},
+          "recordTime": "2025-07-22T08:50:52.249Z",
+          "type": "HEART_RATE",
+          "unit": "bpm",
+          "value": "67"
+        },
+        {
+          "metadata": {},
+          "recordTime": "2025-07-22T09:00:29.233Z",
+          "type": "HEART_RATE",
+          "unit": "bpm",
+          "value": "99"
+        },
+        {
+          "metadata": {},
+          "recordTime": "2025-07-22T09:10:29.267Z",
+          "type": "HEART_RATE",
+          "unit": "bpm",
+          "value": "101"
+        },
+        {
+          "metadata": {},
+          "recordTime": "2025-07-22T09:20:29.258Z",
+          "type": "HEART_RATE",
+          "unit": "bpm",
+          "value": "96"
+        },
+        {
+          "metadata": {},
+          "recordTime": "2025-07-22T09:30:29.225Z",
+          "type": "HEART_RATE",
+          "unit": "bpm",
+          "value": "96"
+        },
+        {
+          "metadata": {},
+          "recordTime": "2025-07-22T09:40:29.224Z",
+          "type": "HEART_RATE",
+          "unit": "bpm",
+          "value": "101"
+        },
+        {
+          "metadata": {},
+          "recordTime": "2025-07-22T09:50:29.237Z",
+          "type": "HEART_RATE",
+          "unit": "bpm",
+          "value": "94"
+        },
+        {
+          "metadata": {},
+          "recordTime": "2025-07-22T10:00:29.352Z",
+          "type": "HEART_RATE",
+          "unit": "bpm",
+          "value": "97"
+        },
+        {
+          "metadata": {},
+          "recordTime": "2025-07-22T10:10:29.282Z",
+          "type": "HEART_RATE",
+          "unit": "bpm",
+          "value": "92"
+        },
+        {
+          "metadata": {},
+          "recordTime": "2025-07-22T10:20:29.382Z",
+          "type": "HEART_RATE",
+          "unit": "bpm",
+          "value": "96"
+        },
+        {
+          "metadata": {},
+          "recordTime": "2025-07-22T10:30:29.346Z",
+          "type": "HEART_RATE",
+          "unit": "bpm",
+          "value": "94"
+        },
+        {
+          "metadata": {},
+          "recordTime": "2025-07-22T10:40:29.316Z",
+          "type": "HEART_RATE",
+          "unit": "bpm",
+          "value": "92"
+        },
+        {
+          "metadata": {},
+          "recordTime": "2025-07-22T10:50:29.313Z",
+          "type": "HEART_RATE",
+          "unit": "bpm",
+          "value": "91"
+        },
+        {
+          "metadata": {},
+          "recordTime": "2025-07-22T11:00:29.345Z",
+          "type": "HEART_RATE",
+          "unit": "bpm",
+          "value": "87"
+        },
+        {
+          "metadata": {},
+          "recordTime": "2025-07-22T11:10:29.269Z",
+          "type": "HEART_RATE",
+          "unit": "bpm",
+          "value": "87"
+        },
+        {
+          "metadata": {},
+          "recordTime": "2025-07-22T11:20:29.353Z",
+          "type": "HEART_RATE",
+          "unit": "bpm",
+          "value": "88"
+        },
+        {
+          "metadata": {},
+          "recordTime": "2025-07-22T11:30:29.369Z",
+          "type": "HEART_RATE",
+          "unit": "bpm",
+          "value": "83"
+        },
+        {
+          "metadata": {},
+          "recordTime": "2025-07-22T11:40:29.259Z",
+          "type": "HEART_RATE",
+          "unit": "bpm",
+          "value": "84"
+        },
+        {
+          "metadata": {},
+          "recordTime": "2025-07-22T11:50:29.245Z",
+          "type": "HEART_RATE",
+          "unit": "bpm",
+          "value": "86"
+        },
+        {
+          "metadata": {},
+          "recordTime": "2025-07-22T12:00:29.248Z",
+          "type": "HEART_RATE",
+          "unit": "bpm",
+          "value": "82"
+        },
+        {
+          "metadata": {},
+          "recordTime": "2025-07-22T12:10:29.273Z",
+          "type": "HEART_RATE",
+          "unit": "bpm",
+          "value": "81"
+        },
+        {
+          "metadata": {},
+          "recordTime": "2025-07-22T12:20:29.270Z",
+          "type": "HEART_RATE",
+          "unit": "bpm",
+          "value": "82"
+        },
+        {
+          "metadata": {},
+          "recordTime": "2025-07-22T12:30:30.115Z",
+          "type": "HEART_RATE",
+          "unit": "bpm",
+          "value": "82"
+        },
+        {
+          "metadata": {
+            "endTime": "2025-07-22T08:32:23.223Z",
+            "exerciseType": "8"
+          },
+          "recordTime": "2025-07-22T08:31:50.848Z",
+          "type": "EXERCISE",
+          "unit": "minutes",
+          "value": "0"
+        },
+        {
+          "metadata": {
+            "endTime": "2025-07-22T08:32:23.223Z",
+            "exerciseType": "3"
+          },
+          "recordTime": "2025-07-22T08:31:50.848Z",
+          "type": "EXERCISE",
+          "unit": "minutes",
+          "value": "30"
+        },
+        {
+          "metadata": {},
+          "recordTime": "2025-07-22T12:35:51.805Z",
+          "type": "BLOOD_PRESSURE",
+          "unit": "mmHg",
+          "value": "116.0/79.0"
+        }
+      ],
+      "dataType": "health_sync",
+      "deviceId": "517c33cbb258c54c",
+      "timestamp": "2025-07-22T13:50:54.551674Z",
+      "userId": "default_user"
+    },
+    "webhookUrl": "http://localhost:5678/webhook/63a1cb1a-67e6-4a79-8fb1-726f5acdd100",
+    "executionMode": "production"
+  }
+]

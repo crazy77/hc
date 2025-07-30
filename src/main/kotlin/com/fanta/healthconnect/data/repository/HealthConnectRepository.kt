@@ -40,8 +40,7 @@ class HealthConnectRepository @Inject constructor(
         HealthPermission.getReadPermission(BodyFatRecord::class),
         HealthPermission.getReadPermission(LeanBodyMassRecord::class),
         HealthPermission.getReadPermission(HydrationRecord::class),
-        HealthPermission.getReadPermission(BoneMassRecord::class),
-        HealthPermission.getReadPermission(VisceralFatRecord::class)
+        HealthPermission.getReadPermission(BoneMassRecord::class)
     )
 
     suspend fun isHealthConnectAvailable(): Boolean {
@@ -176,12 +175,6 @@ class HealthConnectRepository @Inject constructor(
             aggregatedRecords.addAll(dailySleep)
             Log.d("HealthConnectRepository", "Daily sleep: ${dailySleep.size} records")
 
-            // 심박수 데이터 (평균값)
-            Log.d("HealthConnectRepository", "Fetching heart rate...")
-            val heartRateData = readHeartRateData(timeRange)
-            aggregatedRecords.addAll(heartRateData)
-            Log.d("HealthConnectRepository", "Heart rate: ${heartRateData.size} records")
-
             // 심박수 집계 데이터 (평균, 최고, 최저)
             Log.d("HealthConnectRepository", "Fetching aggregated heart rate...")
             val aggregatedHeartRate = aggregateDailyHeartRate(timeRange)
@@ -217,12 +210,6 @@ class HealthConnectRepository @Inject constructor(
             val boneMassData = aggregateDailyBoneMass(timeRange)
             aggregatedRecords.addAll(boneMassData)
             Log.d("HealthConnectRepository", "Bone mass: ${boneMassData.size} records")
-
-            // 내장지방지수 데이터 (최저값)
-            Log.d("HealthConnectRepository", "Fetching visceral fat index...")
-            val visceralFatData = aggregateDailyVisceralFatIndex(timeRange)
-            aggregatedRecords.addAll(visceralFatData)
-            Log.d("HealthConnectRepository", "Visceral fat index: ${visceralFatData.size} records")
 
             // 운동 데이터
             Log.d("HealthConnectRepository", "Fetching exercise data...")
@@ -739,8 +726,8 @@ class HealthConnectRepository @Inject constructor(
             val dailyBloodGlucose = response.records
                 .groupBy { getDateString(it.time) }
                 .map { (date, records) ->
-                    val maxGlucose = records.maxOfOrNull { it.value.inMillimolesPerLiter } ?: 0
-                    val minGlucose = records.minOfOrNull { it.value.inMillimolesPerLiter } ?: 0
+                    val maxGlucose = records.maxOfOrNull { it.level.inMillimolesPerLiter } ?: 0.0
+                    val minGlucose = records.minOfOrNull { it.level.inMillimolesPerLiter } ?: 0.0
                     
                     Log.d("HealthConnectRepository", "Blood glucose for $date: max=$maxGlucose, min=$minGlucose from ${records.size} records")
                     
@@ -787,22 +774,22 @@ class HealthConnectRepository @Inject constructor(
             val dailyBodyFat = response.records
                 .groupBy { getDateString(it.time) }
                 .mapNotNull { (date, records) ->
-                    val minBodyFat = records.minOfOrNull { it.value.inKilograms } ?: 0
+                    val minBodyFat = records.minOfOrNull { it.percentage }
                     
                     Log.d("HealthConnectRepository", "Body fat for $date: min=$minBodyFat from ${records.size} records")
                     
-                    minBodyFat?.let {
+                    if (minBodyFat != null) {
                         HealthRecord(
                             type = HealthDataType.BODY_FAT,
-                            value = String.format("%.1f", it),
-                            unit = "kg",
+                            value = String.format("%.1f", minBodyFat),
+                            unit = "%",
                             recordTime = "${date}T00:00:00Z",
                             metadata = mapOf(
                                 "date" to date,
                                 "recordCount" to records.size.toString()
                             )
                         )
-                    }
+                    } else null
                 }
             
             dailyBodyFat
@@ -823,14 +810,14 @@ class HealthConnectRepository @Inject constructor(
             val dailyMuscleMass = response.records
                 .groupBy { getDateString(it.time) }
                 .mapNotNull { (date, records) ->
-                    val minMuscleMass = records.minOfOrNull { it.value.inKilograms }
+                    val minMuscleMass = records.minOfOrNull { it.mass.inKilograms }
                     
                     Log.d("HealthConnectRepository", "Muscle mass for $date: min=$minMuscleMass from ${records.size} records")
                     
-                    minMuscleMass?.let {
+                    if (minMuscleMass != null) {
                         HealthRecord(
                             type = HealthDataType.MUSCLE_MASS,
-                            value = String.format("%.1f", it),
+                            value = String.format("%.1f", minMuscleMass),
                             unit = "kg",
                             recordTime = "${date}T00:00:00Z",
                             metadata = mapOf(
@@ -838,7 +825,7 @@ class HealthConnectRepository @Inject constructor(
                                 "recordCount" to records.size.toString()
                             )
                         )
-                    }
+                    } else null
                 }
             
             dailyMuscleMass
@@ -857,16 +844,16 @@ class HealthConnectRepository @Inject constructor(
             
             // 일자별 체수분량 데이터 집계 (최저값)
             val dailyBodyWater = response.records
-                .groupBy { getDateString(it.time) }
+                .groupBy { getDateString(it.startTime) }
                 .mapNotNull { (date, records) ->
-                    val minBodyWater = records.minOfOrNull { it.value.inLiters }
+                    val minBodyWater = records.minOfOrNull { it.volume.inLiters }
                     
                     Log.d("HealthConnectRepository", "Body water for $date: min=$minBodyWater from ${records.size} records")
                     
-                    minBodyWater?.let {
+                    if (minBodyWater != null) {
                         HealthRecord(
                             type = HealthDataType.BODY_WATER,
-                            value = String.format("%.1f", it),
+                            value = String.format("%.1f", minBodyWater),
                             unit = "L",
                             recordTime = "${date}T00:00:00Z",
                             metadata = mapOf(
@@ -874,7 +861,7 @@ class HealthConnectRepository @Inject constructor(
                                 "recordCount" to records.size.toString()
                             )
                         )
-                    }
+                    } else null
                 }
             
             dailyBodyWater
@@ -895,14 +882,14 @@ class HealthConnectRepository @Inject constructor(
             val dailyBoneMass = response.records
                 .groupBy { getDateString(it.time) }
                 .mapNotNull { (date, records) ->
-                    val minBoneMass = records.minOfOrNull { it.value.inKilograms }
+                    val minBoneMass = records.minOfOrNull { it.mass.inKilograms }
                     
                     Log.d("HealthConnectRepository", "Bone mass for $date: min=$minBoneMass from ${records.size} records")
                     
-                    minBoneMass?.let {
+                    if (minBoneMass != null) {
                         HealthRecord(
                             type = HealthDataType.BONE_MASS,
-                            value = String.format("%.1f", it),
+                            value = String.format("%.1f", minBoneMass),
                             unit = "kg",
                             recordTime = "${date}T00:00:00Z",
                             metadata = mapOf(
@@ -910,46 +897,10 @@ class HealthConnectRepository @Inject constructor(
                                 "recordCount" to records.size.toString()
                             )
                         )
-                    }
+                    } else null
                 }
             
             dailyBoneMass
-        } catch (e: Exception) {
-            emptyList()
-        }
-    }
-
-    private suspend fun aggregateDailyVisceralFatIndex(timeRange: TimeRangeFilter): List<HealthRecord> {
-        return try {
-            val request = ReadRecordsRequest(
-                recordType = VisceralFatRecord::class,
-                timeRangeFilter = timeRange
-            )
-            val response = healthConnectClient.readRecords(request)
-            
-            // 일자별 내장지방지수 데이터 집계 (최저값)
-            val dailyVisceralFat = response.records
-                .groupBy { getDateString(it.time) }
-                .mapNotNull { (date, records) ->
-                    val minVisceralFat = records.minOfOrNull { it.value.inKilograms }
-                    
-                    Log.d("HealthConnectRepository", "Visceral fat index for $date: min=$minVisceralFat from ${records.size} records")
-                    
-                    minVisceralFat?.let {
-                        HealthRecord(
-                            type = HealthDataType.VISCERAL_FAT_INDEX,
-                            value = String.format("%.1f", it),
-                            unit = "kg",
-                            recordTime = "${date}T00:00:00Z",
-                            metadata = mapOf(
-                                "date" to date,
-                                "recordCount" to records.size.toString()
-                            )
-                        )
-                    }
-                }
-            
-            dailyVisceralFat
         } catch (e: Exception) {
             emptyList()
         }
