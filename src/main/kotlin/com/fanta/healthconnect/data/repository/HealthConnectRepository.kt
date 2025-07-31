@@ -18,6 +18,7 @@ import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlin.math.roundToInt
 
 @Singleton
 class HealthConnectRepository @Inject constructor(
@@ -378,41 +379,41 @@ class HealthConnectRepository @Inject constructor(
                     val sessionDuration = ChronoUnit.MINUTES.between(sessionStart, sessionEnd)
                     totalSessionMinutes += sessionDuration
                     
-                    Log.d("SleepAggregation", "세션 $sessionIndex (날짜 $date 부분): $sessionStart ~ $sessionEnd (${sessionDuration}분)")
+                    Log.d("SleepAggregation", "수면 세션 $sessionIndex (날짜 $date 부분): $sessionStart ~ $sessionEnd (${sessionDuration}분)")
                     
                     session.stages?.let { stages ->
                         if (stages.isNotEmpty()) {
                             hasStagesData = true
-                            Log.d("SleepAggregation", "세션 ${sessionIndex}에 ${stages.size}개 단계 발견")
+                            Log.d("SleepAggregation", "수면 세션 ${sessionIndex}에 ${stages.size}개 단계 발견")
                             
                             stages.forEachIndexed { stageIndex, stage ->
                                 // 단계가 해당 날짜에 포함되는 부분만 계산
                                 val stageIntersection = getStageTimeForDate(stage, date)
                                 if (stageIntersection != null) {
                                     val stageMinutes = ChronoUnit.MINUTES.between(stageIntersection.first, stageIntersection.second)
-                                    Log.d("SleepAggregation", "  단계 $stageIndex: ${stage.stage} ${stageIntersection.first} ~ ${stageIntersection.second} (${stageMinutes}분)")
+                                   // Log.d("SleepAggregation", "  단계 $stageIndex: ${stage.stage} ${stageIntersection.first} ~ ${stageIntersection.second} (${stageMinutes}분)")
                                     
                                     when (stage.stage) {
                                         SleepSessionRecord.STAGE_TYPE_DEEP -> {
                                             deepSleepMinutes += stageMinutes
-                                            Log.d("SleepAggregation", "  깊은 수면 +${stageMinutes}분, 총합: ${deepSleepMinutes}분")
+                                           // Log.d("SleepAggregation", "  깊은 수면 +${stageMinutes}분, 총합: ${deepSleepMinutes}분")
                                         }
                                         SleepSessionRecord.STAGE_TYPE_LIGHT -> {
                                             lightSleepMinutes += stageMinutes
-                                            Log.d("SleepAggregation", "  얕은 수면 +${stageMinutes}분, 총합: ${lightSleepMinutes}분")
+                                           // Log.d("SleepAggregation", "  얕은 수면 +${stageMinutes}분, 총합: ${lightSleepMinutes}분")
                                         }
                                         SleepSessionRecord.STAGE_TYPE_REM -> {
                                             remSleepMinutes += stageMinutes
-                                            Log.d("SleepAggregation", "  REM 수면 +${stageMinutes}분, 총합: ${remSleepMinutes}분")
+                                           // Log.d("SleepAggregation", "  REM 수면 +${stageMinutes}분, 총합: ${remSleepMinutes}분")
                                         }
                                         else -> {
-                                            Log.d("SleepAggregation", "  기타 단계 (${stage.stage}) ${stageMinutes}분 - 제외")
+                                            //Log.d("SleepAggregation", "  기타 단계 (${stage.stage}) ${stageMinutes}분 - 제외")
                                         }
                                     }
                                 }
                             }
                         } else {
-                            Log.d("SleepAggregation", "세션 ${sessionIndex}에 단계 데이터 없음")
+                           // Log.d("SleepAggregation", "세션 ${sessionIndex}에 단계 데이터 없음")
                         }
                     } ?: run {
                         Log.d("SleepAggregation", "세션 ${sessionIndex}에 stages가 null")
@@ -721,21 +722,33 @@ class HealthConnectRepository @Inject constructor(
                 timeRangeFilter = timeRange
             )
             val response = healthConnectClient.readRecords(request)
-            
             // 일자별 혈당 데이터 집계 (최고, 최저)
             val dailyBloodGlucose = response.records
                 .groupBy { getDateString(it.time) }
                 .map { (date, records) ->
-                    val maxGlucose = records.maxOfOrNull { it.level.inMillimolesPerLiter } ?: 0.0
-                    val minGlucose = records.minOfOrNull { it.level.inMillimolesPerLiter } ?: 0.0
+                    val values = records.map { it.level.inMilligramsPerDeciliter }
+                    Log.d("헬스-혈당",  "specimenSource: ${response.records[0].specimenSource}")
+                    val avgGlucose = values.average().roundToInt()
+                    val maxGlucose = values.maxOrNull()?.roundToInt() ?: 0
+                    val minGlucose = values.minOrNull()?.roundToInt() ?: 0
                     
-                    Log.d("HealthConnectRepository", "Blood glucose for $date: max=$maxGlucose, min=$minGlucose from ${records.size} records")
+                    Log.d("HealthConnectRepository", "Blood glucose for $date: avg=$avgGlucose, max=$maxGlucose, min=$minGlucose from ${records.size} records")
                     
                     listOf(
                         HealthRecord(
+                            type = HealthDataType.BLOOD_GLUCOSE,
+                            value = avgGlucose.toString(),
+                            unit = "mg/dL",
+                            recordTime = "${date}T00:00:00Z",
+                            metadata = mapOf(
+                                "date" to date,
+                                "recordCount" to records.size.toString()
+                            )
+                        ),
+                        HealthRecord(
                             type = HealthDataType.BLOOD_GLUCOSE_MAX,
                             value = maxGlucose.toString(),
-                            unit = "mmol/L",
+                            unit = "mg/dL",
                             recordTime = "${date}T00:00:00Z",
                             metadata = mapOf(
                                 "date" to date,
@@ -745,7 +758,7 @@ class HealthConnectRepository @Inject constructor(
                         HealthRecord(
                             type = HealthDataType.BLOOD_GLUCOSE_MIN,
                             value = minGlucose.toString(),
-                            unit = "mmol/L",
+                            unit = "mg/dL",
                             recordTime = "${date}T00:00:00Z",
                             metadata = mapOf(
                                 "date" to date,
@@ -758,6 +771,7 @@ class HealthConnectRepository @Inject constructor(
             
             dailyBloodGlucose
         } catch (e: Exception) {
+            Log.d("혈당", e.toString())
             emptyList()
         }
     }
@@ -941,7 +955,7 @@ class HealthConnectRepository @Inject constructor(
             response.records.map { record ->
                 HealthRecord(
                     type = HealthDataType.BLOOD_PRESSURE,
-                    value = "${record.systolic.inMillimetersOfMercury}/${record.diastolic.inMillimetersOfMercury}",
+                    value = "${record.systolic.inMillimetersOfMercury.roundToInt()}/${record.diastolic.inMillimetersOfMercury.roundToInt()}",
                     unit = "mmHg",
                     recordTime = record.time.toString()
                 )

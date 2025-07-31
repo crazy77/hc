@@ -48,6 +48,29 @@ fun MainScreen(
             .verticalScroll(scrollState),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
+        // 날짜 선택 카드
+        DateSelectionCard(
+            selectedDate = uiState.selectedDate,
+            onDateSelected = { viewModel.selectDate(it) }
+        )
+        // 동기화 제어 카드
+        SyncControlCard(
+            isSyncEnabled = uiState.isSyncEnabled,
+            syncStatus = uiState.syncStatus,
+            lastSyncTime = uiState.lastSyncTime,
+            selectedDate = uiState.selectedDate,
+            onToggleSync = { viewModel.toggleBackgroundSync() },
+            onManualSync = { viewModel.performManualSync() }
+        )
+        // 건강 데이터 표시 카드
+        HealthDataCard(
+            healthData = uiState.healthData,
+            isLoading = uiState.isLoadingData,
+            isPermissionGranted = uiState.isPermissionGranted,
+            selectedDate = uiState.selectedDate,
+            onLoadData = { viewModel.loadHealthDataForSelectedDate() },
+            onLoadTodayData = { viewModel.loadTodayHealthData() }
+        )
         // Health Connect 권한 상태 카드
         PermissionStatusCard(
             isPermissionGranted = uiState.isPermissionGranted,
@@ -58,7 +81,6 @@ fun MainScreen(
             },
             onRefreshPermissions = { viewModel.refreshPermissionStatus() }
         )
-
         // 설정 카드
         SettingsCard(
             webhookUrl = uiState.webhookUrl,
@@ -66,24 +88,7 @@ fun MainScreen(
             onWebhookUrlChange = { viewModel.updateWebhookUrl(it) },
             onSyncIntervalChange = { viewModel.updateSyncInterval(it) },
             onSaveSettings = { viewModel.saveSettings() }
-        )
-
-        // 날짜 선택 카드
-        DateSelectionCard(
-            selectedDate = uiState.selectedDate,
-            onDateSelected = { viewModel.selectDate(it) }
-        )
-
-        // 동기화 제어 카드
-        SyncControlCard(
-            isSyncEnabled = uiState.isSyncEnabled,
-            syncStatus = uiState.syncStatus,
-            lastSyncTime = uiState.lastSyncTime,
-            selectedDate = uiState.selectedDate,
-            onToggleSync = { viewModel.toggleBackgroundSync() },
-            onManualSync = { viewModel.performManualSync() }
-        )
-
+        )    
         // 백그라운드 최적화 카드
         BackgroundOptimizationCard(
             workManagerStatus = uiState.workManagerStatus,
@@ -97,16 +102,6 @@ fun MainScreen(
             onRequestBatteryOptimizationExemption = { viewModel.requestBatteryOptimizationExemption() },
             onRequestAutoStartPermission = { viewModel.requestAutoStartPermission() },
             isPermissionGranted = uiState.isPermissionGranted,
-            onLoadTodayData = { viewModel.loadTodayHealthData() }
-        )
-
-        // 건강 데이터 표시 카드
-        HealthDataCard(
-            healthData = uiState.healthData,
-            isLoading = uiState.isLoadingData,
-            isPermissionGranted = uiState.isPermissionGranted,
-            selectedDate = uiState.selectedDate,
-            onLoadData = { viewModel.loadHealthDataForSelectedDate() },
             onLoadTodayData = { viewModel.loadTodayHealthData() }
         )
     }
