@@ -22,7 +22,8 @@ import kotlin.math.roundToInt
 
 @Singleton
 class HealthConnectRepository @Inject constructor(
-    @ApplicationContext private val context: Context
+    @ApplicationContext private val context: Context,
+    private val samsungHealthRepository: SamsungHealthRepository
 ) {
 
     private val healthConnectClient by lazy {
@@ -37,7 +38,6 @@ class HealthConnectRepository @Inject constructor(
         HealthPermission.getReadPermission(ExerciseSessionRecord::class),
         HealthPermission.getReadPermission(BloodPressureRecord::class),
         HealthPermission.getReadPermission(TotalCaloriesBurnedRecord::class),
-        HealthPermission.getReadPermission(BloodGlucoseRecord::class),
         HealthPermission.getReadPermission(BodyFatRecord::class),
         HealthPermission.getReadPermission(LeanBodyMassRecord::class),
         HealthPermission.getReadPermission(HydrationRecord::class),
@@ -121,8 +121,14 @@ class HealthConnectRepository @Inject constructor(
         val healthRecords = mutableListOf<HealthRecord>()
 
         try {
+            // Health Connect 데이터 (혈당 제외)
             val aggregatedData = aggregateHealthDataByDate(timeRangeFilter)
             healthRecords.addAll(aggregatedData)
+            
+            // Samsung Health 혈당 데이터 (별도 처리)
+            val bloodGlucoseData = getBloodGlucoseFromSamsungHealth(date)
+            healthRecords.addAll(bloodGlucoseData)
+            
             emit(healthRecords)
         } catch (e: Exception) {
             emit(emptyList())
@@ -181,12 +187,6 @@ class HealthConnectRepository @Inject constructor(
             val aggregatedHeartRate = aggregateDailyHeartRate(timeRange)
             aggregatedRecords.addAll(aggregatedHeartRate)
             Log.d("HealthConnectRepository", "Aggregated heart rate: ${aggregatedHeartRate.size} records")
-
-            // 혈당 데이터 (최고, 최저)
-            Log.d("HealthConnectRepository", "Fetching blood glucose...")
-            val bloodGlucoseData = aggregateDailyBloodGlucose(timeRange)
-            aggregatedRecords.addAll(bloodGlucoseData)
-            Log.d("HealthConnectRepository", "Blood glucose: ${bloodGlucoseData.size} records")
 
             // 체지방 데이터 (최저값)
             Log.d("HealthConnectRepository", "Fetching body fat...")
@@ -715,63 +715,31 @@ class HealthConnectRepository @Inject constructor(
         }
     }
 
-    private suspend fun aggregateDailyBloodGlucose(timeRange: TimeRangeFilter): List<HealthRecord> {
+    private suspend fun getBloodGlucoseFromSamsungHealth(targetDate: LocalDate): List<HealthRecord> {
         return try {
-            val request = ReadRecordsRequest(
-                recordType = BloodGlucoseRecord::class,
-                timeRangeFilter = timeRange
-            )
-            val response = healthConnectClient.readRecords(request)
-            // 일자별 혈당 데이터 집계 (최고, 최저)
-            val dailyBloodGlucose = response.records
-                .groupBy { getDateString(it.time) }
-                .map { (date, records) ->
-                    val values = records.map { it.level.inMilligramsPerDeciliter }
-                    Log.d("헬스-혈당",  "specimenSource: ${response.records[0].specimenSource}")
-                    val avgGlucose = values.average().roundToInt()
-                    val maxGlucose = values.maxOrNull()?.roundToInt() ?: 0
-                    val minGlucose = values.minOrNull()?.roundToInt() ?: 0
-                    
-                    Log.d("HealthConnectRepository", "Blood glucose for $date: avg=$avgGlucose, max=$maxGlucose, min=$minGlucose from ${records.size} records")
-                    
-                    listOf(
-                        HealthRecord(
-                            type = HealthDataType.BLOOD_GLUCOSE,
-                            value = avgGlucose.toString(),
-                            unit = "mg/dL",
-                            recordTime = "${date}T00:00:00Z",
-                            metadata = mapOf(
-                                "date" to date,
-                                "recordCount" to records.size.toString()
-                            )
-                        ),
-                        HealthRecord(
-                            type = HealthDataType.BLOOD_GLUCOSE_MAX,
-                            value = maxGlucose.toString(),
-                            unit = "mg/dL",
-                            recordTime = "${date}T00:00:00Z",
-                            metadata = mapOf(
-                                "date" to date,
-                                "recordCount" to records.size.toString()
-                            )
-                        ),
-                        HealthRecord(
-                            type = HealthDataType.BLOOD_GLUCOSE_MIN,
-                            value = minGlucose.toString(),
-                            unit = "mg/dL",
-                            recordTime = "${date}T00:00:00Z",
-                            metadata = mapOf(
-                                "date" to date,
-                                "recordCount" to records.size.toString()
-                            )
-                        )
-                    )
-                }
-                .flatten()
+            Log.d("HealthConnectRepository", "Getting blood glucose from Samsung Health for date: $targetDate")
             
-            dailyBloodGlucose
+            // 1. Samsung Health 연결
+            val isConnected = samsungHealthRepository.connectToSamsungHealth()
+            if (!isConnected) {
+                Log.w("HealthConnectRepository", "Failed to connect to Samsung Health")
+                return emptyList()
+            }
+            
+            // 2. 권한 요청
+            val hasPermission = samsungHealthRepository.requestPermissions()
+            if (!hasPermission) {
+                Log.w("HealthConnectRepository", "Failed to get Samsung Health permissions")
+                return emptyList()
+            }
+            
+            // 3. 해당 날짜의 혈당 데이터 가져오기
+            val bloodGlucoseData = samsungHealthRepository.getBloodGlucoseDataForDate(targetDate)
+            
+            Log.d("HealthConnectRepository", "Retrieved ${bloodGlucoseData.size} blood glucose records from Samsung Health for date $targetDate")
+            bloodGlucoseData
         } catch (e: Exception) {
-            Log.d("혈당", e.toString())
+            Log.e("HealthConnectRepository", "Error getting blood glucose from Samsung Health", e)
             emptyList()
         }
     }

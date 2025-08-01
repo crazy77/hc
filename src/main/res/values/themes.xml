@@ -34,13 +34,13 @@
 
     <style name="Theme.HealthConnectWebhook" parent="Theme.Material3.DayNight">
         <!-- Primary brand color. -->
-        <item name="colorPrimary">@android:color/system_accent1_400</item>
-        <item name="colorOnPrimary">@android:color/white</item>
+        <item name="colorPrimary">@color/md_theme_light_primary</item>
+        <item name="colorOnPrimary">@color/md_theme_light_onPrimary</item>
         <!-- Primary variant brand color. -->
-        <item name="colorPrimaryVariant">@android:color/system_accent1_600</item>
+        <item name="colorPrimaryVariant">@color/md_theme_light_primaryContainer</item>
         <!-- Secondary brand color. -->
-        <item name="colorSecondary">@android:color/system_accent2_400</item>
-        <item name="colorOnSecondary">@android:color/black</item>
+        <item name="colorSecondary">@color/md_theme_light_secondary</item>
+        <item name="colorOnSecondary">@color/md_theme_light_onSecondary</item>
         <!-- Status bar color. -->
         <item name="android:statusBarColor">?attr/colorPrimaryVariant</item>
         <!-- Customize your theme here. -->

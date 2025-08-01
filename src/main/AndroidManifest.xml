@@ -10,7 +10,6 @@
     <uses-permission android:name="android.permission.health.READ_EXERCISE" />
     <uses-permission android:name="android.permission.health.READ_BLOOD_PRESSURE" />
     <uses-permission android:name="android.permission.health.READ_TOTAL_CALORIES_BURNED" />
-    <uses-permission android:name="android.permission.health.READ_BLOOD_GLUCOSE" />
     <uses-permission android:name="android.permission.health.READ_BODY_FAT" />
     <uses-permission android:name="android.permission.health.READ_LEAN_BODY_MASS" />
     <uses-permission android:name="android.permission.health.READ_HYDRATION" />
@@ -35,10 +34,17 @@
     <!-- Health Connect queries -->
     <queries>
         <package android:name="com.google.android.apps.healthdata" />
+        <package android:name="com.sec.android.app.shealth" />
         <intent>
             <action android:name="androidx.health.ACTION_SHOW_PERMISSIONS_RATIONALE" />
         </intent>
     </queries>
+    
+    <!-- Samsung Health permissions -->
+    <uses-permission android:name="com.samsung.android.health.permission.READ_HEALTH_DATA" />
+    
+
+    
 
     <application
         android:name=".HealthConnectApplication"
@@ -52,6 +58,11 @@
         android:theme="@style/Theme.HealthConnectWebhook"
         android:networkSecurityConfig="@xml/network_security_config"
         tools:targetApi="31">
+
+        <!-- Samsung Health permissions -->
+        <meta-data
+            android:name="com.samsung.android.health.permission.read"
+            android:value="com.samsung.health.blood_glucose" />
 
         <!-- Health Connect availability check -->
         <activity-alias

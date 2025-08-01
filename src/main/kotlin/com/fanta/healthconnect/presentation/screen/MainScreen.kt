@@ -35,6 +35,7 @@ import kotlinx.coroutines.launch
 fun MainScreen(
     viewModel: MainViewModel = hiltViewModel(),
     onRequestPermissions: (() -> Unit)? = null,
+    onRequestSamsungHealthPermissions: (() -> Unit)? = null,
     contentPadding: PaddingValues = PaddingValues(0.dp)
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -80,6 +81,13 @@ fun MainScreen(
                 onRequestPermissions?.invoke() ?: viewModel.requestHealthConnectPermissions()
             },
             onRefreshPermissions = { viewModel.refreshPermissionStatus() }
+        )
+        // Samsung Health 권한 상태 카드
+        SamsungHealthPermissionCard(
+            onRequestSamsungHealthPermissions = {
+                android.util.Log.d("MainScreen", "Samsung Health 권한 요청 버튼 클릭됨")
+                onRequestSamsungHealthPermissions?.invoke()
+            }
         )
         // 설정 카드
         SettingsCard(
@@ -840,6 +848,77 @@ private fun BackgroundOptimizationCard(
                 Spacer(modifier = Modifier.width(4.dp))
                 Text("WorkManager 재시작 (문제 해결시)")
             }
+        }
+    }
+} 
+
+@Composable
+private fun SamsungHealthPermissionCard(
+    onRequestSamsungHealthPermissions: () -> Unit
+) {
+    var isRequestingPermission by remember { mutableStateOf(false) }
+    
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.secondaryContainer
+        )
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                text = "Samsung Health 권한",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
+            )
+            
+            Text(
+                text = "혈당 데이터를 읽기 위해 Samsung Health 권한이 필요합니다.",
+                style = MaterialTheme.typography.bodyMedium
+            )
+
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Button(
+                    onClick = {
+                        android.util.Log.d("MainScreen", "Samsung Health 권한 요청 버튼 클릭됨 (SamsungHealthPermissionCard)")
+                        isRequestingPermission = true
+                        onRequestSamsungHealthPermissions()
+                        // 3초 후에 요청 상태를 리셋
+                        CoroutineScope(Dispatchers.Main).launch {
+                            delay(3000)
+                            isRequestingPermission = false
+                        }
+                    },
+                    modifier = Modifier.weight(1f),
+                    enabled = !isRequestingPermission
+                ) {
+                    if (isRequestingPermission) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(16.dp),
+                            strokeWidth = 2.dp
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("요청 중...")
+                    } else {
+                        Icon(
+                            imageVector = Icons.Default.Lock,
+                            contentDescription = "Samsung Health 권한 요청"
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Samsung Health 권한 요청")
+                    }
+                }
+            }
+            
+            Text(
+                text = "참고: Samsung Health 앱에서 개발자 모드를 활성화해야 할 수 있습니다.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
     }
 } 

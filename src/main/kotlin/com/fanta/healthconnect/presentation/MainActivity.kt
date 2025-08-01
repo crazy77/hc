@@ -13,6 +13,7 @@ import androidx.health.connect.client.PermissionController
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.lifecycleScope
 import com.fanta.healthconnect.data.repository.HealthConnectRepository
+import com.fanta.healthconnect.data.repository.SamsungHealthRepository
 import com.fanta.healthconnect.presentation.screen.MainScreen
 import com.fanta.healthconnect.presentation.theme.HealthConnectWebhookTheme
 import com.fanta.healthconnect.presentation.viewmodel.MainViewModel
@@ -26,6 +27,9 @@ class MainActivity : ComponentActivity() {
     @Inject
     lateinit var healthConnectRepository: HealthConnectRepository
     
+    @Inject
+    lateinit var samsungHealthRepository: SamsungHealthRepository
+    
     private val healthConnectClient by lazy {
         HealthConnectClient.getOrCreate(this)
     }
@@ -33,6 +37,26 @@ class MainActivity : ComponentActivity() {
     // Health Connect 권한 요청을 위한 Activity Result Launcher
     private val requestPermissionActivityContract = 
         PermissionController.createRequestPermissionResultContract()
+    
+    // Samsung Health 권한 요청을 위한 Activity Result Launcher
+    private val requestSamsungHealthPermissions = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        android.util.Log.d("MainActivity", "Samsung Health 권한 요청 결과: ${result.resultCode}")
+        
+        // Samsung Health 권한 요청 후 상태 확인
+        lifecycleScope.launch {
+            try {
+                val hasPermissions = samsungHealthRepository.requestPermissions()
+                android.util.Log.d("MainActivity", "Samsung Health 권한 상태: $hasPermissions")
+                
+                // ViewModel이 있으면 권한 상태 새로고침
+                currentViewModel?.refreshPermissionStatus()
+            } catch (e: Exception) {
+                android.util.Log.e("MainActivity", "Samsung Health 권한 확인 실패", e)
+            }
+        }
+    }
     
 
     
@@ -94,12 +118,36 @@ class MainActivity : ComponentActivity() {
                                 }
                             }
                         },
+                        onRequestSamsungHealthPermissions = {
+                            // Samsung Health 권한 요청
+                            android.util.Log.d("MainActivity", "Samsung Health 권한 요청 시작")
+                            
+                            lifecycleScope.launch {
+                                try {
+                                    // Samsung Health 연결 시도
+                                    val isConnected = samsungHealthRepository.connectToSamsungHealth()
+                                    android.util.Log.d("MainActivity", "Samsung Health 연결 상태: $isConnected")
+                                    
+                                    if (isConnected) {
+                                        // Activity를 사용한 권한 요청
+                                        val hasPermissions = samsungHealthRepository.requestPermissionsWithActivity(this@MainActivity)
+                                        android.util.Log.d("MainActivity", "Samsung Health 권한 요청 결과: $hasPermissions")
+                                        
+                                        if (!hasPermissions) {
+                                            android.util.Log.d("MainActivity", "Samsung Health 권한 요청 다이얼로그가 표시되었습니다")
+                                        }
+                                    } else {
+                                        android.util.Log.e("MainActivity", "Samsung Health 연결 실패")
+                                    }
+                                } catch (e: Exception) {
+                                    android.util.Log.e("MainActivity", "Samsung Health 권한 요청 실패", e)
+                                }
+                            }
+                        },
                         contentPadding = innerPadding
                     )
                 }
             }
         }
     }
-    
-
 }

@@ -1,0 +1,84 @@
+-dontskipnonpubliclibraryclassmembers
+-dontwarn java.lang.invoke.**
+-dontusemixedcaseclassnames
+-keepparameternames
+-keepattributes Exceptions,InnerClasses,Signature,Deprecated,SourceFile,LineNumberTable,*Annotation*,EnclosingMethod
+#-dontpreverify
+-verbose
+-dontwarn java.lang.invoke.StringConcatFactory
+#-dontobfuscate
+
+# Keep - Library. Keep all public and protected classes, fields, and methods.
+-keep public class com.samsung.android.sdk.health.data.* {
+	public protected *;
+}
+
+-keep public class com.samsung.android.sdk.health.data.data.* {
+	public protected *;
+}
+
+-keep public class com.samsung.android.sdk.health.data.data.entries.* {
+	<fields>;
+	public protected *;
+}
+
+-keep public class com.samsung.android.sdk.health.data.helper.* {
+	public protected *;
+}
+
+-keep public class com.samsung.android.sdk.health.data.unit.* {
+    public protected *;
+}
+
+-keep public class com.samsung.android.sdk.health.data.device.* {
+	public protected *;
+}
+
+-keep public class com.samsung.android.sdk.health.data.error.* {
+	public protected *;
+}
+
+-keep public class com.samsung.android.sdk.health.data.internal.FieldDataMap {
+	public protected *;
+}
+
+-keep public class com.samsung.android.sdk.health.data.internal.CompletableCallback {
+	public protected *;
+}
+
+-keep public class com.samsung.android.sdk.health.data.internal.SingleCallback {
+	public protected *;
+}
+
+-keep public class com.samsung.android.sdk.health.data.internal.ConnectionResponse {
+	public protected *;
+}
+
+-keep public class com.samsung.android.sdk.health.data.internal.ConnectionResponse$* {
+	public protected *;
+}
+
+-keep public class com.samsung.android.sdk.health.data.internal.ErrorStatus {
+	public protected *;
+}
+
+-keep public class com.samsung.android.sdk.health.data.permission.* {
+	public protected *;
+}
+
+-keep public class com.samsung.android.sdk.health.data.request.* {
+	<fields>;
+	public protected *;
+}
+
+-keep public class com.samsung.android.sdk.health.data.response.* {
+	public protected *;
+}
+
+-keepclassmembers class * implements android.os.Parcelable {
+    public static final android.os.Parcelable$Creator CREATOR;
+}
+
+-keep class * implements android.os.Parcelable {
+   public static final android.os.Parcelable$Creator *;
+}
