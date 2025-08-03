@@ -1,7 +1,9 @@
 package com.fanta.healthconnect.data.repository
 
 import android.content.Context
+import android.renderscript.Element
 import android.util.Log
+import kotlin.math.round
 import com.fanta.healthconnect.data.model.HealthRecord
 import com.fanta.healthconnect.data.model.HealthDataType
 import com.samsung.android.sdk.health.data.HealthDataStore
@@ -129,8 +131,9 @@ class SamsungHealthRepository @Inject constructor(
                 val localDateTime = dataPoint.startTime.atZone(ZoneId.systemDefault()).toLocalDateTime()
                 val localDate = localDateTime.toLocalDate()
                 val glucoseLevel = dataPoint.getValue(DataType.BloodGlucoseType.GLUCOSE_LEVEL) as? Float
+                val measureType = dataPoint.getValue(DataType.BloodGlucoseType.MEAL_STATUS)
                 
-                Log.d(TAG, "Data point $i: startTime=${dataPoint.startTime}, localDateTime=$localDateTime, localDate=$localDate, glucoseLevel=$glucoseLevel")
+                Log.d(TAG, "Data point $i: Level=${(glucoseLevel ?: 0f) * 18} Type=$measureType")
             }
             
             // 일별 집계 데이터만 생성 (기존 Health Connect 형식과 동일)
@@ -153,24 +156,46 @@ class SamsungHealthRepository @Inject constructor(
             val localDate = dataPoint.startTime.atZone(ZoneId.systemDefault()).toLocalDate()
             localDate == targetDate
         }
+        val filteredFasting = filteredPoints.filter { dataPoint ->
+            val type= dataPoint.getValue( DataType.BloodGlucoseType.MEAL_STATUS)
+            type == DataType.BloodGlucoseType.MealStatus.FASTING;
+        }
         if (filteredPoints.isEmpty()) return emptyList()
 
         val glucoseLevels = filteredPoints.mapNotNull {
-            it.getValue(DataType.BloodGlucoseType.GLUCOSE_LEVEL) as? Float
+            it.getValue(DataType.BloodGlucoseType.GLUCOSE_LEVEL)
         }
         if (glucoseLevels.isEmpty()) return emptyList()
 
+        
         val avgGlucose = glucoseLevels.average().toFloat()
         val maxGlucose = glucoseLevels.maxOrNull()!!
         val minGlucose = glucoseLevels.minOrNull()!!
+        var fastingGlucose: Float? = null
+        if (filteredFasting.isEmpty()) {
+            fastingGlucose = avgGlucose
+        } else {
+            fastingGlucose = filteredFasting[0].getValue(DataType.BloodGlucoseType.GLUCOSE_LEVEL)?.toFloat()
+            if (fastingGlucose == null) {
+                fastingGlucose = avgGlucose
+            }
+        }
 
-        val avgGlucoseMgdl = (avgGlucose * 18).toInt()
-        val maxGlucoseMgdl = (maxGlucose * 18).toInt()
-        val minGlucoseMgdl = (minGlucose * 18).toInt()
+        val fastingGlucoseMgdl= round(fastingGlucose * 18).toInt()
+        val avgGlucoseMgdl = round(avgGlucose * 18).toInt()
+        val maxGlucoseMgdl = round(maxGlucose * 18).toInt()
+        val minGlucoseMgdl = round(minGlucose * 18).toInt()
 
         return listOf(
             HealthRecord(
                 type = HealthDataType.BLOOD_GLUCOSE,
+                value = fastingGlucoseMgdl.toString(),
+                unit = "mg/dL",
+                recordTime = targetDate.atStartOfDay().atZone(ZoneId.systemDefault()).toInstant().toString(),
+                metadata = mapOf("date" to targetDate.format(DateTimeFormatter.ISO_LOCAL_DATE))
+            ),
+            HealthRecord(
+                type = HealthDataType.BLOOD_GLUCOSE_AVG,
                 value = avgGlucoseMgdl.toString(),
                 unit = "mg/dL",
                 recordTime = targetDate.atStartOfDay().atZone(ZoneId.systemDefault()).toInstant().toString(),

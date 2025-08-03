@@ -284,8 +284,8 @@ class HealthConnectRepository @Inject constructor(
                     val totalCalories = records.sumOf { it.energy.inCalories }
                     HealthRecord(
                         type = HealthDataType.CALORIES,
-                        value = String.format("%.1f", totalCalories),
-                        unit = "cal",
+                        value = (totalCalories / 1000).toInt().toString(), // 정수로 변환
+                        unit = "kcal",
                         recordTime = "${date}T00:00:00Z",
                         metadata = mapOf(
                             "date" to date,
@@ -943,8 +943,8 @@ class HealthConnectRepository @Inject constructor(
             response.records.map { record ->
                 HealthRecord(
                     type = HealthDataType.CALORIES,
-                    value = record.energy.inCalories.toString(),
-                    unit = "cal",
+                    value = (record.energy.inCalories / 1000).toInt().toString(), // 정수로 변환
+                    unit = "kcal",
                     recordTime = record.startTime.toString(),
                     metadata = mapOf(
                         "endTime" to record.endTime.toString()

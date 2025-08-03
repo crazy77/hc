@@ -36,6 +36,7 @@ enum class HealthDataType {
     BLOOD_PRESSURE,
     CALORIES,
     BLOOD_GLUCOSE,
+    BLOOD_GLUCOSE_AVG,
     BLOOD_GLUCOSE_MAX,
     BLOOD_GLUCOSE_MIN,
     BODY_FAT,
