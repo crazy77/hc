@@ -132,8 +132,6 @@ class SamsungHealthRepository @Inject constructor(
                 val localDate = localDateTime.toLocalDate()
                 val glucoseLevel = dataPoint.getValue(DataType.BloodGlucoseType.GLUCOSE_LEVEL) as? Float
                 val measureType = dataPoint.getValue(DataType.BloodGlucoseType.MEAL_STATUS)
-                
-                Log.d(TAG, "Data point $i: Level=${(glucoseLevel ?: 0f) * 18} Type=$measureType")
             }
             
             // 일별 집계 데이터만 생성 (기존 Health Connect 형식과 동일)

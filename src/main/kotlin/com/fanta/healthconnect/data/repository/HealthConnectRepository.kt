@@ -40,7 +40,7 @@ class HealthConnectRepository @Inject constructor(
         HealthPermission.getReadPermission(TotalCaloriesBurnedRecord::class),
         HealthPermission.getReadPermission(BodyFatRecord::class),
         HealthPermission.getReadPermission(LeanBodyMassRecord::class),
-        HealthPermission.getReadPermission(HydrationRecord::class),
+        HealthPermission.getReadPermission(BodyWaterMassRecord::class),
         HealthPermission.getReadPermission(BoneMassRecord::class)
     )
 
@@ -106,6 +106,10 @@ class HealthConnectRepository @Inject constructor(
         try {
             val aggregatedData = aggregateHealthDataByDate(timeRangeFilter)
             healthRecords.addAll(aggregatedData)
+            
+            // Samsung Health 혈당 데이터 (별도 처리)
+            val bloodGlucoseData = getBloodGlucoseFromSamsungHealth(today)
+            healthRecords.addAll(bloodGlucoseData)
             emit(healthRecords)
         } catch (e: Exception) {
             emit(emptyList())
@@ -751,12 +755,12 @@ class HealthConnectRepository @Inject constructor(
                 timeRangeFilter = timeRange
             )
             val response = healthConnectClient.readRecords(request)
-            
+            Log.d("HealthConnectRepository", "Body fat response: ${response.records.size} records")
             // 일자별 체지방 데이터 집계 (최저값)
             val dailyBodyFat = response.records
                 .groupBy { getDateString(it.time) }
                 .mapNotNull { (date, records) ->
-                    val minBodyFat = records.minOfOrNull { it.percentage }
+                    val minBodyFat = records.minOfOrNull { it.percentage.value }
                     
                     Log.d("HealthConnectRepository", "Body fat for $date: min=$minBodyFat from ${records.size} records")
                     
@@ -819,16 +823,16 @@ class HealthConnectRepository @Inject constructor(
     private suspend fun aggregateDailyBodyWater(timeRange: TimeRangeFilter): List<HealthRecord> {
         return try {
             val request = ReadRecordsRequest(
-                recordType = HydrationRecord::class,
+                recordType = BodyWaterMassRecord::class,
                 timeRangeFilter = timeRange
             )
             val response = healthConnectClient.readRecords(request)
             
             // 일자별 체수분량 데이터 집계 (최저값)
             val dailyBodyWater = response.records
-                .groupBy { getDateString(it.startTime) }
+                .groupBy { getDateString(it.time) }
                 .mapNotNull { (date, records) ->
-                    val minBodyWater = records.minOfOrNull { it.volume.inLiters }
+                    val minBodyWater = records.minOfOrNull { it.mass.inKilograms }
                     
                     Log.d("HealthConnectRepository", "Body water for $date: min=$minBodyWater from ${records.size} records")
                     

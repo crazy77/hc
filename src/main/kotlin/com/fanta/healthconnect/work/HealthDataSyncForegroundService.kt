@@ -137,11 +137,12 @@ class HealthDataSyncForegroundService : Service() {
             val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             notificationManager.notify(NOTIFICATION_ID, notification)
 
-            // 오늘의 건강 데이터 수집
+            // 오늘의 건강 데이터 수집 (삼성헬스 혈당 데이터 포함)
             var totalRecords = 0
-            healthConnectRepository.getTodayHealthData().collect { healthRecords ->
+            val today = java.time.LocalDate.now()
+            healthConnectRepository.getHealthDataForDate(today).collect { healthRecords ->
                 totalRecords = healthRecords.size
-                Log.d(TAG, "Foreground service retrieved ${healthRecords.size} health records")
+                Log.d(TAG, "Foreground service retrieved ${healthRecords.size} health records (including Samsung Health blood glucose)")
                 
                 if (healthRecords.isNotEmpty()) {
                     // 데이터 타입별 개수 로깅
