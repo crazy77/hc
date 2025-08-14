@@ -85,7 +85,9 @@ class HealthConnectRepository @Inject constructor(
 
         try {
             // 일자별로 집계된 데이터 생성
-            val aggregatedData = aggregateHealthDataByDate(timeRangeFilter)
+            val sinceDate = since.atZone(ZoneId.systemDefault()).toLocalDate()
+            val sleepStartTime = sinceDate.minusDays(1).atStartOfDay(ZoneId.systemDefault()).toInstant()
+            val aggregatedData = aggregateHealthDataByDate(timeRangeFilter, TimeRangeFilter.between(sleepStartTime, since))
             healthRecords.addAll(aggregatedData)
 
             emit(healthRecords)
@@ -104,7 +106,9 @@ class HealthConnectRepository @Inject constructor(
         val healthRecords = mutableListOf<HealthRecord>()
 
         try {
-            val aggregatedData = aggregateHealthDataByDate(timeRangeFilter)
+            val sleepStartTime = today.minusDays(1).atStartOfDay(ZoneId.systemDefault()).toInstant()
+            val sleepEndTime = today.plusDays(1).atStartOfDay(ZoneId.systemDefault()).toInstant()
+            val aggregatedData = aggregateHealthDataByDate(timeRangeFilter, TimeRangeFilter.between(sleepStartTime, sleepEndTime))
             healthRecords.addAll(aggregatedData)
             
             // Samsung Health 혈당 데이터 (별도 처리)
@@ -118,15 +122,21 @@ class HealthConnectRepository @Inject constructor(
 
     // 특정 날짜의 건강 데이터 조회
     suspend fun getHealthDataForDate(date: LocalDate): Flow<List<HealthRecord>> = flow {
+        // 수면 데이터는 전날 밤부터 오늘까지 포함하도록 시간 범위 확장
+        val sleepStartTime = date.minusDays(1).atStartOfDay(ZoneId.systemDefault()).toInstant()
+        val sleepEndTime = date.plusDays(1).atStartOfDay(ZoneId.systemDefault()).toInstant()
+        val sleepTimeRangeFilter = TimeRangeFilter.between(sleepStartTime, sleepEndTime)
+        
+        // 다른 건강 데이터는 해당 날짜만 조회
         val startOfDay = date.atStartOfDay(ZoneId.systemDefault()).toInstant()
         val endOfDay = date.plusDays(1).atStartOfDay(ZoneId.systemDefault()).toInstant()
-        
         val timeRangeFilter = TimeRangeFilter.between(startOfDay, endOfDay)
+        
         val healthRecords = mutableListOf<HealthRecord>()
 
         try {
             // Health Connect 데이터 (혈당 제외)
-            val aggregatedData = aggregateHealthDataByDate(timeRangeFilter)
+            val aggregatedData = aggregateHealthDataByDate(timeRangeFilter, sleepTimeRangeFilter)
             healthRecords.addAll(aggregatedData)
             
             // Samsung Health 혈당 데이터 (별도 처리)
@@ -141,14 +151,20 @@ class HealthConnectRepository @Inject constructor(
 
     // 특정 날짜 범위의 건강 데이터 조회
     suspend fun getHealthDataForDateRange(startDate: LocalDate, endDate: LocalDate): Flow<List<HealthRecord>> = flow {
+        // 수면 데이터는 시작일 전날 밤부터 종료일까지 포함하도록 시간 범위 확장
+        val sleepStartTime = startDate.minusDays(1).atStartOfDay(ZoneId.systemDefault()).toInstant()
+        val sleepEndTime = endDate.plusDays(1).atStartOfDay(ZoneId.systemDefault()).toInstant()
+        val sleepTimeRangeFilter = TimeRangeFilter.between(sleepStartTime, sleepEndTime)
+        
+        // 다른 건강 데이터는 지정된 날짜 범위만 조회
         val startOfRange = startDate.atStartOfDay(ZoneId.systemDefault()).toInstant()
         val endOfRange = endDate.plusDays(1).atStartOfDay(ZoneId.systemDefault()).toInstant()
-        
         val timeRangeFilter = TimeRangeFilter.between(startOfRange, endOfRange)
+
         val healthRecords = mutableListOf<HealthRecord>()
 
         try {
-            val aggregatedData = aggregateHealthDataByDate(timeRangeFilter)
+            val aggregatedData = aggregateHealthDataByDate(timeRangeFilter, sleepTimeRangeFilter)
             healthRecords.addAll(aggregatedData)
             emit(healthRecords)
         } catch (e: Exception) {
@@ -156,11 +172,15 @@ class HealthConnectRepository @Inject constructor(
         }
     }
 
-    private suspend fun aggregateHealthDataByDate(timeRange: TimeRangeFilter): List<HealthRecord> {
+    private suspend fun aggregateHealthDataByDate(
+        timeRange: TimeRangeFilter, 
+        sleepTimeRange: TimeRangeFilter
+    ): List<HealthRecord> {
         val aggregatedRecords = mutableListOf<HealthRecord>()
         
         try {
             Log.d("HealthConnectRepository", "Starting data aggregation for time range: ${timeRange}")
+            Log.d("HealthConnectRepository", "Sleep time range: ${sleepTimeRange}")
             
             // 일자별 걸음수 집계 (합계)
             Log.d("HealthConnectRepository", "Fetching daily steps...")
@@ -180,9 +200,9 @@ class HealthConnectRepository @Inject constructor(
             aggregatedRecords.addAll(dailyWeight)
             Log.d("HealthConnectRepository", "Daily weight: ${dailyWeight.size} records")
 
-            // 일자별 수면 데이터 (상세 분석)
+            // 일자별 수면 데이터 (전날 밤 + 오늘 낮 수면 포함)
             Log.d("HealthConnectRepository", "Fetching daily sleep...")
-            val dailySleep = aggregateDailySleep(timeRange)
+            val dailySleep = aggregateDailySleep(sleepTimeRange)
             aggregatedRecords.addAll(dailySleep)
             Log.d("HealthConnectRepository", "Daily sleep: ${dailySleep.size} records")
 
@@ -340,18 +360,20 @@ class HealthConnectRepository @Inject constructor(
 
     private suspend fun aggregateDailySleep(timeRange: TimeRangeFilter): List<HealthRecord> {
         return try {
-            // 수면 세션 데이터 가져오기
+            // 수면 세션 데이터 가져오기 (전날 밤부터 오늘까지)
             val sessionRequest = ReadRecordsRequest(
                 recordType = SleepSessionRecord::class,
                 timeRangeFilter = timeRange
             )
             val sessionResponse = healthConnectClient.readRecords(sessionRequest)
             
+            Log.d("SleepAggregation", "전체 수면 세션: ${sessionResponse.records.size}개")
+            
             // 중복 세션 제거 (startTime, endTime이 동일한 세션들)
             val uniqueSessions = sessionResponse.records
                 .distinctBy { "${it.startTime}_${it.endTime}" }
                 .also { 
-                    Log.d("SleepAggregation", "전체 세션: ${sessionResponse.records.size}개, 중복 제거 후: ${it.size}개")
+                    Log.d("SleepAggregation", "중복 제거 후 세션: ${it.size}개")
                 }
             
             // 날짜별로 수면 데이터 집계 (한국 시간대 기준)
@@ -376,6 +398,8 @@ class HealthConnectRepository @Inject constructor(
                 var remSleepMinutes = 0L
                 var hasStagesData = false
                 var totalSessionMinutes = 0L
+                var nightSleepMinutes = 0L  // 전날 밤 수면 (22:00 ~ 06:00)
+                var daySleepMinutes = 0L    // 오늘 낮 수면 (06:00 ~ 22:00)
                 
                 sessions.forEachIndexed { sessionIndex, session ->
                     // 해당 날짜에 해당하는 세션 부분만 계산
@@ -383,7 +407,13 @@ class HealthConnectRepository @Inject constructor(
                     val sessionDuration = ChronoUnit.MINUTES.between(sessionStart, sessionEnd)
                     totalSessionMinutes += sessionDuration
                     
+                    // 전날 밤 수면과 오늘 낮 수면 구분
+                    val (nightSleep, daySleep) = categorizeSleepByTime(sessionStart, sessionEnd, date)
+                    nightSleepMinutes += nightSleep
+                    daySleepMinutes += daySleep
+                    
                     Log.d("SleepAggregation", "수면 세션 $sessionIndex (날짜 $date 부분): $sessionStart ~ $sessionEnd (${sessionDuration}분)")
+                    Log.d("SleepAggregation", "  - 전날 밤 수면: ${nightSleep}분, 오늘 낮 수면: ${daySleep}분")
                     
                     session.stages?.let { stages ->
                         if (stages.isNotEmpty()) {
@@ -395,53 +425,41 @@ class HealthConnectRepository @Inject constructor(
                                 val stageIntersection = getStageTimeForDate(stage, date)
                                 if (stageIntersection != null) {
                                     val stageMinutes = ChronoUnit.MINUTES.between(stageIntersection.first, stageIntersection.second)
-                                   // Log.d("SleepAggregation", "  단계 $stageIndex: ${stage.stage} ${stageIntersection.first} ~ ${stageIntersection.second} (${stageMinutes}분)")
                                     
                                     when (stage.stage) {
                                         SleepSessionRecord.STAGE_TYPE_DEEP -> {
                                             deepSleepMinutes += stageMinutes
-                                           // Log.d("SleepAggregation", "  깊은 수면 +${stageMinutes}분, 총합: ${deepSleepMinutes}분")
                                         }
                                         SleepSessionRecord.STAGE_TYPE_LIGHT -> {
                                             lightSleepMinutes += stageMinutes
-                                           // Log.d("SleepAggregation", "  얕은 수면 +${stageMinutes}분, 총합: ${lightSleepMinutes}분")
                                         }
                                         SleepSessionRecord.STAGE_TYPE_REM -> {
                                             remSleepMinutes += stageMinutes
-                                           // Log.d("SleepAggregation", "  REM 수면 +${stageMinutes}분, 총합: ${remSleepMinutes}분")
                                         }
                                         else -> {
-                                            //Log.d("SleepAggregation", "  기타 단계 (${stage.stage}) ${stageMinutes}분 - 제외")
+                                            // 기타 단계는 제외
                                         }
                                     }
                                 }
                             }
-                        } else {
-                           // Log.d("SleepAggregation", "세션 ${sessionIndex}에 단계 데이터 없음")
                         }
-                    } ?: run {
-                        Log.d("SleepAggregation", "세션 ${sessionIndex}에 stages가 null")
                     }
                 }
                 
-                // 총 수면시간 계산
+                // 총 수면시간 계산 (전날 밤 + 오늘 낮)
                 val stagesSumMinutes = deepSleepMinutes + lightSleepMinutes + remSleepMinutes
+                val totalSleepMinutes = if (hasStagesData && stagesSumMinutes > 0) {
+                    minOf(totalSessionMinutes, stagesSumMinutes)
+                } else {
+                    totalSessionMinutes
+                }
                 
                 Log.d("SleepAggregation", "날짜 $date 결과:")
                 Log.d("SleepAggregation", "  세션 총 시간: ${totalSessionMinutes}분")
+                Log.d("SleepAggregation", "  전날 밤 수면: ${nightSleepMinutes}분")
+                Log.d("SleepAggregation", "  오늘 낮 수면: ${daySleepMinutes}분")
                 Log.d("SleepAggregation", "  단계별 합계: ${stagesSumMinutes}분 (깊은:${deepSleepMinutes}, 얕은:${lightSleepMinutes}, REM:${remSleepMinutes})")
-                Log.d("SleepAggregation", "  단계 데이터 있음: $hasStagesData")
-                
-                val totalSleepMinutes = if (hasStagesData && stagesSumMinutes > 0) {
-                    // 단계별 데이터가 있고 0보다 클 때, 세션 시간과 비교해서 더 작은 값 사용
-                    val result = minOf(totalSessionMinutes, stagesSumMinutes)
-                    Log.d("SleepAggregation", "  최종 선택: ${result}분 (min of session and stages)")
-                    result
-                } else {
-                    // 단계별 데이터가 없으면 세션 전체 시간 사용
-                    Log.d("SleepAggregation", "  최종 선택: ${totalSessionMinutes}분 (session only)")
-                    totalSessionMinutes
-                }
+                Log.d("SleepAggregation", "  최종 수면시간: ${totalSleepMinutes}분")
                 
                 // 총 수면시간이 0보다 클 때만 기록 추가
                 if (totalSleepMinutes > 0) {
@@ -455,7 +473,10 @@ class HealthConnectRepository @Inject constructor(
                                 "date" to date,
                                 "sessionCount" to sessions.size.toString(),
                                 "hasStagesData" to hasStagesData.toString(),
-                                "calculationMethod" to if (hasStagesData) "stages" else "session"
+                                "calculationMethod" to if (hasStagesData) "stages" else "session",
+                                "nightSleepMinutes" to nightSleepMinutes.toString(),
+                                "daySleepMinutes" to daySleepMinutes.toString(),
+                                "sleepSource" to "night_and_day_combined"
                             )
                         )
                     )
@@ -510,12 +531,15 @@ class HealthConnectRepository @Inject constructor(
                 }
             }
             
+            Log.d("SleepAggregation", "최종 수면 기록: ${sleepRecords.size}개")
             sleepRecords
+            
         } catch (e: Exception) {
+            Log.e("SleepAggregation", "Error in aggregateDailySleep", e)
             emptyList()
         }
     }
-
+    
     // 세션이 걸치는 모든 날짜를 반환 (한국 시간대 기준)
     private fun getSessionDates(session: SleepSessionRecord): List<String> {
         val startDate = session.startTime.atZone(ZoneId.systemDefault()).toLocalDate()
@@ -957,6 +981,45 @@ class HealthConnectRepository @Inject constructor(
             }
         } catch (e: Exception) {
             emptyList()
+        }
+    }
+
+    // 수면 시간을 전날 밤과 오늘 낮으로 구분
+    private fun categorizeSleepByTime(sessionStart: Instant, sessionEnd: Instant, date: String): Pair<Long, Long> {
+        val targetDate = LocalDate.parse(date)
+        val dayStart = targetDate.atStartOfDay(ZoneId.systemDefault()).toInstant()
+        val dayEnd = targetDate.plusDays(1).atStartOfDay(ZoneId.systemDefault()).toInstant()
+        
+        // 전날 밤 수면: 전날 22:00 ~ 오늘 06:00
+        val nightStart = targetDate.minusDays(1).atTime(22, 0).atZone(ZoneId.systemDefault()).toInstant()
+        val nightEnd = targetDate.atTime(6, 0).atZone(ZoneId.systemDefault()).toInstant()
+        
+        // 오늘 낮 수면: 오늘 06:00 ~ 오늘 22:00
+        val dayStartTime = targetDate.atTime(6, 0).atZone(ZoneId.systemDefault()).toInstant()
+        val dayEndTime = targetDate.atTime(22, 0).atZone(ZoneId.systemDefault()).toInstant()
+        
+        // 세션과 각 시간대의 교집합 계산
+        val nightIntersection = calculateIntersection(sessionStart, sessionEnd, nightStart, nightEnd)
+        val dayIntersection = calculateIntersection(sessionStart, sessionEnd, dayStartTime, dayEndTime)
+        
+        val nightMinutes = ChronoUnit.MINUTES.between(nightIntersection.first, nightIntersection.second)
+        val dayMinutes = ChronoUnit.MINUTES.between(dayIntersection.first, dayIntersection.second)
+        
+        return Pair(
+            if (nightMinutes > 0) nightMinutes else 0L,
+            if (dayMinutes > 0) dayMinutes else 0L
+        )
+    }
+    
+    // 두 시간 범위의 교집합 계산
+    private fun calculateIntersection(start1: Instant, end1: Instant, start2: Instant, end2: Instant): Pair<Instant, Instant> {
+        val intersectionStart = maxOf(start1, start2)
+        val intersectionEnd = minOf(end1, end2)
+        
+        return if (intersectionStart < intersectionEnd) {
+            Pair(intersectionStart, intersectionEnd)
+        } else {
+            Pair(intersectionStart, intersectionStart) // 교집합이 없는 경우
         }
     }
 } 
